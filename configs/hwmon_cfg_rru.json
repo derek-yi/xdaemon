@@ -1,0 +1,32 @@
+{
+
+"sys.param": {
+	"status": "OK"
+},
+
+"checklist": {
+	"cpu.occupy": {
+		"interval": 5,
+		"repeat": 10,
+		"param1": 60,
+		"param2": 0,
+		"range_low": "0",
+		"range_high": "80"
+	},
+	
+	"9544.pll.lock": {
+		"interval": 5,
+		"repeat": 10,
+		"param1": 60,
+		"param2": 0
+	},
+	
+	"9544.reg.dump": {
+		"interval": 5,
+		"repeat": 10,
+		"param1": 60,
+		"param2": 0
+	}
+}
+
+}
