@@ -14,7 +14,7 @@
 
 typedef int (* CMD_FUNC)(int argc, char **argv);
 
-int cli_cmd_reg(char *cmd, char *help, CMD_FUNC func);
+int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func);
 
 void cli_main_task(void);
 

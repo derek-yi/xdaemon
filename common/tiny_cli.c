@@ -138,7 +138,8 @@ int cli_cmd_exec(char *buff)
     if (pNode == NULL)
     {
         rc = system(buff);
-        return rc; 
+        if (rc < 0) printf("cmd: %s, error(0x%x): %s", buff, rc, strerror(errno));
+        return CMD_OK; 
     }
 
 #ifdef CHECK_AMBIGUOUS
@@ -170,7 +171,7 @@ int cli_cmd_exec(char *buff)
     return rc;
 }
 
-int cli_cmd_reg(char *cmd, char *help, CMD_FUNC func)
+int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func)
 {
     CMD_NODE *new_node;
     
@@ -202,10 +203,8 @@ int cli_do_exit(int argc, char **argv)
 
 int cli_do_param_test(int argc, char **argv)
 {
-    uint32 i;
-
     vos_print("param format: \r\n");
-    for (i=0; i<argc; i++)
+    for (int i=0; i<argc; i++)
     {
         vos_print("%d: %s\r\n", i, argv[i]);
     }
@@ -242,7 +241,7 @@ void cli_cmd_init(void)
     //gst_cmd_list = NULL;
     cli_cmd_reg("quit",         "exit app",             &cli_do_exit);
     cli_cmd_reg("help",         "cmd help",             &cli_do_help);
-    //cli_cmd_reg("version",      "show version",         &cli_do_show_version);
+    cli_cmd_reg("version",      "show version",         &cli_do_show_version);
     cli_cmd_reg("cmdtest",      "cmd param test",       &cli_do_param_test);
 }
 

@@ -1,32 +1,112 @@
 {
-
-"sys.param": {
-	"status": "OK"
-},
-
-"checklist": {
-	"cpu.occupy": {
-		"interval": 5,
-		"repeat": 10,
-		"param1": 60,
-		"param2": 0,
-		"range_low": "0",
-		"range_high": "80"
+	"sys.param": {
+		"status": "OK"
 	},
-	
-	"9544.pll.lock": {
-		"interval": 5,
-		"repeat": 10,
-		"param1": 60,
-		"param2": 0
-	},
-	
-	"9544.reg.dump": {
-		"interval": 5,
-		"repeat": 10,
-		"param1": 60,
-		"param2": 0
-	}
-}
-
+	"checklist": {
+		"cpu.occupy": {
+			"function": "check_cpu_occupy",
+			"interval": 10,
+			"repeat": 3,
+			"//param": "top_limit",
+			"param": [20],
+			"append": "hi,hwmon"
+		},
+		"mem.occupy": {
+			"function": "check_mem_occupy",
+			"interval": 10,
+			"repeat": 3,
+			"//param": "top_limit",
+			"param": [20]
+		},
+		"cpu.temp": {
+			"function": "check_cpu_temp",
+			"interval": 10,
+			"//param": "low_limit high_limit",
+			"param": [90, 110]
+		},
+		"board.temp": {
+			"function": "check_board_temp",
+			"interval": 10,
+			"//param": "low_limit high_limit",
+			"param": [0, 90, 110]
+		},
+		"power.check": {
+			"function": "ina2xx_reg_check",
+			"interval": 5,
+			"repeat": 3,
+			"//param": "chipid limit",
+			"param": [0, 30000]
+		},
+		"fan.speed1": {
+			"function": "fan_speed_check",
+			"interval": 10,
+			"repeat": 3,
+			"//param": "fanid limit",
+			"param": [0, 50]
+		},
+		"fpga.reg.check1": {
+			"function": "fpga_reg_check",
+			"interval": 10,
+			"//param": "reg_addr mask exp_val",
+			"param": [0x85000010, 0xffff, 0x28]
+		},
+		"fpga.reg.dump1": {
+			"function": "fpga_reg_dump",
+			"interval": 600,
+			"//param": "base_addr reg_cnt",
+			"param": [0x85000010, 16]
+		},
+		"9544.reg.check1": {
+			"function": "ad9544_reg_check",
+			"interval": 20,
+			"//param": "addr mask value",
+			"param": [0xc, 0xff, 0x56]
+		},
+		"9544.pll.lock": {
+			"function": "ad9544_pll_check",
+			"interval": 5,
+			"repeat": 3
+		},
+		"9544.reg.dump": {
+			"function": "ad9544_reg_dump",
+			"interval": 600,
+			"//param": "base_addr reg_cnt",
+			"param": [0, 10]
+		},
+		"9528.reg.check1": {
+			"function": "ad9528_reg_check",
+			"interval": 20,
+			"//param": "addr mask value",
+			"param": [0x508, 0xff, 0xEB]
+		},
+		"9528.pll.lock": {
+			"function": "ad9528_pll_check",
+			"interval": 5,
+			"repeat": 3
+		},
+		"9528.reg.dump": {
+			"function": "ad9528_reg_dump",
+			"interval": 600,
+			"//param": "base_addr reg_cnt",
+			"param": [0x500, 10]
+		},
+		"9009.reg.check1": {
+			"function": "adrv9009_reg_check",
+			"interval": 20,
+			"//param": "chipid addr mask value",
+			"param": [0, 0x200, 0xff, 0x14]
+		},
+		"9009.pll.lock": {
+			"function": "adrv9009_pll_check",
+			"interval": 5,
+			"repeat": 3,
+			"param": [0]
+		},
+		"9009.reg.dump": {
+			"function": "adrv9009_reg_dump",
+			"interval": 600,
+			"//param": "chip_id base_addr reg_cnt",
+			"param": [0, 0x500, 10]
+		}			
+    }
 }

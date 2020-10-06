@@ -4,7 +4,13 @@ obj-m:=daemon_k.o
 
 else
 
-KERNELDIR:=/lib/modules/$(shell uname -r)/build
+ifeq ($(ARCH), arm)
+  KERNELDIR = $(kernel_dir)
+else
+  KERNELDIR:=/lib/modules/$(shell uname -r)/build
+endif
+#KERNELDIR:=/lib/modules/$(shell uname -r)/build
+
 PWD:=$(shell pwd)
 
 default:

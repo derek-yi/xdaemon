@@ -15,7 +15,7 @@ int devm_load_script(char *file_name)
 
 int devm_init(char *file_name)
 {
-    int ret;
+    int ret = VOS_OK;
     
     //load cfg script
     devm_load_script(file_name);
@@ -23,7 +23,7 @@ int devm_init(char *file_name)
     //cmd reg
     devm_cmd_reg();
     
-    return 0;    
+    return ret;    
 }
 
 int devm_exit()

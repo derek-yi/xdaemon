@@ -1,6 +1,14 @@
-CROSS = 
-CC = $(CROSS)gcc
-CXX = $(CROSS)g++
+
+## $(ARCH) from arm_cc
+ifeq ($(ARCH), arm)
+  CROSS_COMPILE = arm-linux-gnueabihf-
+  export kernel_dir = /home/yihongliang/nr_rru_g3/out_fhk_zc706_uImage
+else
+  CROSS_COMPILE = 
+endif
+
+CC = $(CROSS_COMPILE)gcc
+CXX = $(CROSS_COMPILE)g++
 MV = mv -f
 RM = rm -rf
 LN = ln -sf
@@ -10,7 +18,7 @@ TARGET = oran_daemon
 TOP_PATH = $(shell pwd)
 SRC_PATH = common driver service
 
-CFLAGS = -Wall -c
+CFLAGS = -Wall -c -g
 LINK_FLAGS += -lrt -lpthread
 
 ##########################################################
@@ -63,14 +71,14 @@ $(TARGET) : $(OBJS_CPP) $(OBJS_C)
 	make -C $$i; \
 	done
 
-	@ $(CXX) $^ -o $@ $(LIB_PATH) $(LIBS) $(LINK_FLAGS)
+	@ $(CC) $^ -o $@ $(LIB_PATH) $(LIBS) $(LINK_FLAGS)
 	@ echo Create $(TARGET) ok...
 
 $(OBJS_CPP):%.o : %.cpp
 	$(CXX) $(CFLAGS) $< -o $@ $(INC_PATH)
 
 $(OBJS_C):%.o : %.c
-	$(CXX) $(CFLAGS) $< -o $@ $(INC_PATH)
+	$(CC) $(CFLAGS) $< -o $@ $(INC_PATH)
 
 .PHONY : clean
 clean:

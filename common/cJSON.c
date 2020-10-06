@@ -297,6 +297,50 @@ typedef struct
 /* get a pointer to the buffer at the position */
 #define buffer_at_offset(buffer) ((buffer)->content + (buffer)->offset)
 
+static cJSON_bool parse_number_hex(cJSON * const item, parse_buffer * const input_buffer)
+{
+    unsigned long number = 0;
+    unsigned char *after_end = NULL;
+    unsigned char number_c_string[64];
+    unsigned char ch;
+    size_t i = 0;
+    size_t offset = 0;
+
+    if ((input_buffer == NULL) || (input_buffer->content == NULL))
+    {
+        return false;
+    }
+
+    for (i = 0; (i < (sizeof(number_c_string) - 1)) && can_access_at_index(input_buffer, i); i++)
+    {
+        ch = buffer_at_offset(input_buffer)[i];
+        if ( (ch >= '0' && ch <='9') || (ch >= 'a' && ch <='f') || (ch >= 'A' && ch <='F') || (ch == 'x') )
+        {
+            number_c_string[i] = buffer_at_offset(input_buffer)[i];
+        }
+        else 
+        {
+            offset = i;
+            break;
+        }
+    }
+    
+    number_c_string[i] = '\0';
+
+    number = strtoul((const char*)number_c_string, (char**)&after_end, 0);
+    if (number_c_string == after_end)
+    {
+        return false; /* parse_error */
+    }
+
+    item->valuedouble = (double)number;
+    item->valueint = (int)number;
+    item->type = cJSON_Number;
+
+    input_buffer->offset += offset;
+    return true;
+}
+
 /* Parse the input text to generate a number, and populate the result into item. */
 static cJSON_bool parse_number(cJSON * const item, parse_buffer * const input_buffer)
 {
@@ -1337,6 +1381,12 @@ static cJSON_bool parse_value(cJSON * const item, parse_buffer * const input_buf
     if (can_access_at_index(input_buffer, 0) && (buffer_at_offset(input_buffer)[0] == '\"'))
     {
         return parse_string(item, input_buffer);
+    }
+    /* number.hex */
+    if ( can_access_at_index(input_buffer, 0) && (buffer_at_offset(input_buffer)[0] == '0') &&
+        can_access_at_index(input_buffer, 1) && (buffer_at_offset(input_buffer)[1] == 'x')  )
+    {
+        return parse_number_hex(item, input_buffer);
     }
     /* number */
     if (can_access_at_index(input_buffer, 0) && ((buffer_at_offset(input_buffer)[0] == '-') || ((buffer_at_offset(input_buffer)[0] >= '0') && (buffer_at_offset(input_buffer)[0] <= '9'))))
