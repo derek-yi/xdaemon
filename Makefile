@@ -13,7 +13,7 @@ MV = mv -f
 RM = rm -rf
 LN = ln -sf
 
-TARGET = oran_daemon
+TARGET = daemon_app
 
 TOP_PATH = $(shell pwd)
 SRC_PATH = common driver service

@@ -18,7 +18,7 @@ int main()
  
     fd = open("/dev/miscdriver", O_RDWR);
     if( fd < 0 ) {
-        printf("open miscdriver WRONG£¡\n");
+        printf("open miscdriver WRONG\n");
         return 0;
     }
  

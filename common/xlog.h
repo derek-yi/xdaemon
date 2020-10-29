@@ -16,4 +16,7 @@ int xlog_config(char *path, int max_file_size);
 
 int xlog(int level, const char *fmt, ...);
 
+int xlog_print_file(int level);
+
+
 #endif

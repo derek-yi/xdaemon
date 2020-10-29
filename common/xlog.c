@@ -15,6 +15,8 @@ typedef struct _XLOG_CTRL{
     int     flags;
 }XLOG_CTRL_S;
 
+//#define XLOG_KEEP_OPEN
+
 XLOG_CTRL_S xlog_ctrl[XLOG_MAX] = 
 {
     {-1, "xlog.info.log",   LOG_PRINT},
@@ -27,26 +29,92 @@ XLOG_CTRL_S xlog_ctrl[XLOG_MAX] =
     {-1, NULL, 0},
 };
 
-#define DAEMON_DEF_LOG_PATH     "/tmp/oran_daemon/"
+//created by daemon_monitor.sh
+#define DAEMON_DEF_LOG_PATH     "/tmp/xlog/"
+
+int xlog_backup(int force)
+{
+    static int backup_done = FALSE;
+    struct tm *tp;
+    time_t t = time(NULL);
+    char cmd_buff[64];
+
+    tp = localtime(&t);
+    if ( (tp->tm_hour == 4) && (backup_done == TRUE) ){
+        backup_done = FALSE;
+        return VOS_OK;
+    }
+
+    if ( ( (tp->tm_hour == 3) && (backup_done == FALSE) )
+        || (force == TRUE)  ) {
+        backup_done = TRUE;
+
+        sprintf(cmd_buff, "tar -czf xlog%d%02d%02d.tar.gz %s/* >/dev/null 2>&1", 
+                tp->tm_year+1900, tp->tm_mon+1, tp->tm_mday, DAEMON_DEF_LOG_PATH);
+        shell_run_cmd(cmd_buff);
+        sprintf(cmd_buff, "rm -rf %s/* >/dev/null 2>&1", DAEMON_DEF_LOG_PATH);
+        shell_run_cmd(cmd_buff);
+    }
+        
+    return VOS_OK;
+}
+
 #define XLOG_BUFF_MAX           512
 
 int xlog_get_fd(int level)
 {
     int fd;
     char file_path[64];
-    
+
+#ifdef XLOG_KEEP_OPEN     
     if (xlog_ctrl[level].fd > 0) {
         return xlog_ctrl[level].fd;
     }
+#endif
 
     sprintf(file_path, "%s%s", DAEMON_DEF_LOG_PATH, xlog_ctrl[level].file_name);
-    fd = open(file_path, O_CREAT|O_RDWR);
+    fd = open(file_path, O_CREAT|O_RDWR, 0666);
     if (fd > 0) {
         xlog_ctrl[level].fd = fd;
+        lseek(fd, 0, SEEK_END);
     }
     
     return fd;
 }
+
+int xlog_print_file(int level)
+{
+    FILE *fp;
+    char temp_buf[XLOG_BUFF_MAX];
+    const char *cp_file = "temp_file";
+    
+    if ( (level >= XLOG_MAX) || (xlog_ctrl[level].file_name == NULL) ) {
+        fprintf(stderr, "ERROR: invalid id %d\n", level);
+        return VOS_ERR;
+    }
+
+    sprintf(temp_buf, "cp -f %s%s %s", DAEMON_DEF_LOG_PATH, xlog_ctrl[level].file_name, cp_file);
+    shell_run_cmd(temp_buf);
+    
+    fp = fopen(cp_file, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "open failed, %s\n", strerror(errno));
+        unlink(cp_file);
+        return VOS_ERR;
+    }
+
+    vos_print("%s: \r\n", xlog_ctrl[level].file_name);
+    memset(temp_buf, 0, sizeof(temp_buf));
+    while (fgets(temp_buf, XLOG_BUFF_MAX-1, fp) != NULL) {  
+        vos_print("%s", temp_buf);
+        memset(temp_buf, 0, sizeof(temp_buf));
+    }
+
+    fclose(fp);
+    unlink(cp_file);
+    return VOS_OK;
+}
+
 
 void fmt_time_str(char *time_str, int max_len)
 {
@@ -86,7 +154,7 @@ int xlog(int level, const char *format, ...)
     va_end(args);
 
     fmt_time_str(time_str, 64);
-    len = sprintf(buf2, "%s %s\n", time_str, buf);
+    len = sprintf(buf2, "%s %s\r\n", time_str, buf);
 
     if (xlog_ctrl[level].flags & LOG_FILE) {
         int fd = xlog_get_fd(level);
@@ -94,11 +162,17 @@ int xlog(int level, const char *format, ...)
             return VOS_ERR;
         }
         write(fd, buf2, len);
+        #ifndef XLOG_KEEP_OPEN
+        close(fd);
+        #endif
     }
-    
+
     if (xlog_ctrl[level].flags & LOG_PRINT) {
-        printf("%s", buf2);
+        vos_print("%s", buf2);
     }
+
+    //backup everyday
+    xlog_backup(FALSE);
 
     return len;    
 }

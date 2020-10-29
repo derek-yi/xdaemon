@@ -18,7 +18,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-
+#include <sys/file.h>
 
 #include "vos.h"
 #include "xlog.h"
@@ -28,9 +28,19 @@
 
 //todo: move to makefile
 #define BOARD_RRU_G3
-//#define BOARD_RHUB_G1
 
+//todo: move to makefile
+//define DAEMON_RELEASE
 
+/*************************************************************************
+ * global config
+ *************************************************************************/
+#define DAEMON_VERSION          0x100
+
+//#define INCLUDE_CONSOLE
+
+#define INCLUDE_TELNETD
+#define TELNETD_LISTEN_PORT     2300
 
 /*************************************************************************
  * board config: rru g3
@@ -44,8 +54,6 @@
 #define DRV_CFG_FILE            "configs/drv_cfg_rru.json"
 #define HWMON_CFG_FILE          "configs/hwmon_cfg_rru.json"
 #define DEVM_CFG_FILE           "configs/devm_cfg_rru.json"
-
-#define INCLUDE_UT_CODE
 
 #define INCLUDE_ADRV9009
 

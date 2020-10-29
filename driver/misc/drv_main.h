@@ -4,7 +4,7 @@
 
 #define DFAULT_VALUE    0
 
-#define UT_CHECK_VALUE(ret, exp)  { if(ret != exp) printf("%d: failed, ret 0x%x, exp 0x%x \n", __LINE__, ret, exp); }
+#define UT_CHECK_VALUE(ret, exp)  { if(ret != exp) vos_print("%d: failed, ret 0x%x, exp 0x%x \n", __LINE__, ret, exp); }
 
 int drv_module_init(char *cfg_file);
 

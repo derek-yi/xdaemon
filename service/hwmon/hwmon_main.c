@@ -3,14 +3,17 @@
 #include "daemon_pub.h"
 
 #include "hwmon_common.h"
+#include "hwmon_msg.h"
 #include "devm_msg.h"
-
 
 
 #define HWMON_MAX_NODE      1024
 
 CHK_NODE_INFO_S hwmon_list[HWMON_MAX_NODE];
 
+int check_task_enable = TRUE;
+
+int peak_check_time = 0;
 
 /*************************************************************************
  * 加载解析hwmon的配置脚本，see configs/hwmon_cfg_rru.json
@@ -146,12 +149,12 @@ int hwmon_config(const char *node_desc, chk_func func, void *cookie)
 }
 
 /*************************************************************************
- * 获取检测点的私有配置数据
+ * 获取检测点的配置数据
  * chk_node     - 
  * cfg_str      - 
  * return       - 
  *************************************************************************/
-char *hwmon_get_priv_cfg(CHK_NODE_CFG_S *chk_node, char *cfg_str)
+char *hwmon_get_node_cfg(CHK_NODE_CFG_S *chk_node, char *cfg_str)
 {
     CHK_PRIV_CFG_S *p;
 
@@ -168,6 +171,68 @@ char *hwmon_get_priv_cfg(CHK_NODE_CFG_S *chk_node, char *cfg_str)
     
     return NULL;
 }
+
+/*************************************************************************
+ * 设置检测点的配置数据
+ * chk_node     - 
+ * cfg_str      - 
+ * return       - 
+ *************************************************************************/
+int hwmon_set_node_cfg(const char *node_desc, char *cfg_str, char *cfg_val)
+{
+    CHK_PRIV_CFG_S *p;
+    int i, pi;
+
+    if (node_desc == NULL) return VOS_ERR;
+    if (cfg_str == NULL) return VOS_ERR;
+
+    for (i = 0; i < HWMON_MAX_NODE; i++) {
+        if (hwmon_list[i].base_cfg.node_desc) {
+            if (!strcmp(hwmon_list[i].base_cfg.node_desc, node_desc)) {
+                break;
+            }
+        }
+    }
+
+    if (i == HWMON_MAX_NODE) {
+        return VOS_ERR;
+    }
+
+    //set CHK_NODE_CFG_S.base_cfg.param[pi]
+    int value = (int)strtoul(cfg_val, 0, 0);
+    if (memcmp(cfg_str, "param", 5) == 0) {
+        pi = (int)(cfg_str[5] - '0');
+        if (pi < 0 || pi >= CHK_P_NUM) return VOS_ERR;
+        hwmon_list[i].base_cfg.param[pi] = value;
+        return VOS_OK;
+    }
+
+    //set CHK_NODE_CFG_S.base_cfg.interval
+    if (memcmp(cfg_str, "interval", 8) == 0) {
+        hwmon_list[i].base_cfg.interval = value;
+        return VOS_OK;
+    }
+
+    //set CHK_NODE_CFG_S.enable
+    if (memcmp(cfg_str, "enable", 6) == 0) {
+        hwmon_list[i].enable = value;
+        return VOS_OK;
+    }
+
+    //set CHK_NODE_CFG_S.priv_cfg
+    p = hwmon_list[i].base_cfg.priv_cfg;
+    while (p != NULL) {
+        if( !strcmp(cfg_str, p->cfg_str) ) {
+            if (p->cfg_val) free(p->cfg_val);
+            p->cfg_val = strdup(cfg_val);
+            return VOS_OK;
+        }
+        p = p->next;
+    }
+    
+    return VOS_ERR;
+}
+
 
 /*************************************************************************
  * 使能指定检测点
@@ -214,6 +279,10 @@ int hwmon_set_interval(const char *node_desc, int interval)
  *************************************************************************/
 void hwmon_timer_callback(union sigval param)
 {
+    if (check_task_enable != TRUE) {
+        return ;
+    }
+    
     // 定时器回调函数应该简单处理
     for (int i = 0; i < HWMON_MAX_NODE; i++) {
         if (hwmon_list[i].enable) {
@@ -234,8 +303,12 @@ void* hwmon_check_task(void *param)
     int t_used = 0;
 
     while(1) {
-        gettimeofday(&t_start, NULL);
+        if (check_task_enable != TRUE) {
+            vos_msleep(100);
+            continue;
+        }
         
+        gettimeofday(&t_start, NULL);
         for (int i = 0; i < HWMON_MAX_NODE; i++) {
             if ( (hwmon_list[i].enable)
                 && (hwmon_list[i].check_status == CHK_STATUS_READY) 
@@ -246,16 +319,28 @@ void* hwmon_check_task(void *param)
                 hwmon_list[i].check_status = CHK_STATUS_IDLE;
             }
         }
-
         gettimeofday(&t_end, NULL);
+        
         t_used = (t_end.tv_sec - t_start.tv_sec)*1000000+(t_end.tv_usec - t_start.tv_usec);//us
         t_used = t_used/1000; //ms
-        //xlog(XLOG_INFO, "hwmon_check_task: t_used %d", t_used);
+        if (peak_check_time < t_used) peak_check_time = t_used;
         
         vos_msleep(500);
     }
     
     return NULL;
+}
+
+int hwmon_enable_task(int enable)
+{
+    if (enable) {
+        check_task_enable = TRUE;
+    } else if (check_task_enable == TRUE) {
+        check_task_enable = FALSE;
+        vos_msleep(1000); //wait task goto sleep
+    } 
+    
+    return VOS_OK;
 }
 
 /*************************************************************************
@@ -267,7 +352,7 @@ int hwmon_send_msg(int node_id, char *node_desc, int fault_state)
     DEVM_MSG_S tx_msg;
     HWMON_MSG_S *msg_data = (HWMON_MSG_S *)tx_msg.msg_payload;
 
-    tx_msg.cmd_type     = CMD_TYPE_HWMON;
+    tx_msg.msg_type     = MSG_TYPE_HWMON;
     tx_msg.need_ack     = FALSE;
     tx_msg.payload_len  = sizeof(HWMON_MSG_S);
     
@@ -275,8 +360,8 @@ int hwmon_send_msg(int node_id, char *node_desc, int fault_state)
     msg_data->node_id = node_id;
     msg_data->fault_state = fault_state;
     
-    //ret = devm_send_msg(APP_ORAN_MP, &tx_msg, NULL);
-    ret = devm_send_msg(APP_ORAN_DAEMON, &tx_msg, NULL); //debug only
+    ret = devm_send_msg(APP_ORAN_MP, &tx_msg, NULL);
+    //ret = devm_send_msg(APP_ORAN_DAEMON, &tx_msg, NULL); //debug only
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, devm_send_msg failed(%d)", __FILE__, __LINE__, ret);
     } 
@@ -313,15 +398,15 @@ int cli_json_test(int argc, char **argv)
     /* read and parse test */
     tree = parse_file(argv[1]);
     if (tree == NULL ) {
-        printf("Failed to read of parse test.\n");
+        vos_print("Failed to read of parse test. \r\n");
         return 0;
     }
 
     /* print the parsed tree */
     actual = cJSON_Print(tree);
     if (actual != NULL ) {
-        printf("file %s: \n", argv[1]);
-        printf("%s\n", actual);
+        vos_print("file %s: \r\n", argv[1]);
+        vos_print("%s \r\n", actual);
     }
 
     if (tree != NULL)
@@ -341,54 +426,95 @@ int cli_json_test(int argc, char **argv)
 /*************************************************************************
  * 打印所有检测节点信息
  *************************************************************************/
-int hwmon_list_show(int argc, char **argv)
+int cli_show_hwmon_list(int argc, char **argv)
 {
     int count = 0;
     
     for (int i = 0; i < HWMON_MAX_NODE; i++) {
         if (hwmon_list[i].base_cfg.node_desc) {
             count++;
-            printf("%s: \n", hwmon_list[i].base_cfg.node_desc);
-            printf("  => interval=%d repeat=%d param=0x%x|0x%x", 
-                    hwmon_list[i].base_cfg.interval, hwmon_list[i].base_cfg.repeat_max, 
-                    hwmon_list[i].base_cfg.param[0], hwmon_list[i].base_cfg.param[1]);
+            vos_print("%s: \r\n", hwmon_list[i].base_cfg.node_desc);
+            vos_print("  => interval=%d repeat=%d param=0x%x|0x%x", 
+                      hwmon_list[i].base_cfg.interval, hwmon_list[i].base_cfg.repeat_max, 
+                      hwmon_list[i].base_cfg.param[0], hwmon_list[i].base_cfg.param[1]);
 
             if (hwmon_list[i].base_cfg.priv_cfg != NULL) {
-                printf(" priv_cfg(%s=%s)", 
-                        hwmon_list[i].base_cfg.priv_cfg->cfg_str, 
-                        hwmon_list[i].base_cfg.priv_cfg->cfg_val);
+                vos_print(" priv_cfg(%s=%s)", 
+                          hwmon_list[i].base_cfg.priv_cfg->cfg_str, 
+                          hwmon_list[i].base_cfg.priv_cfg->cfg_val);
             }
 
-            printf("\n  => enable=%d check_times=%d fault_state=%d \n\n", 
+            vos_print("\r\n  => enable=%d check_times=%d fault_state=%d \r\n", 
                     hwmon_list[i].enable, 
                     hwmon_list[i].check_times, hwmon_list[i].fault_state);
         }
     }
-    printf("hwmon list count: %d \n", count);
+    vos_print("hwmon list count: %d \r\n", count);
+#ifndef DAEMON_RELEASE    
+    vos_print("peak check time : %d(ms) \r\n", peak_check_time);
+#endif  
+
+    return VOS_OK;
+}
+
+int cli_show_hwmon_history(int argc, char **argv)
+{
+    xlog_print_file(XLOG_HWMON);
+    return VOS_OK;
+}
+
+int cli_enable_hwmon_task(int argc, char **argv)
+{
+    if (argc < 2) {
+        vos_print("usage: %s <enable|disable> \r\n", argv[0]);
+        return VOS_OK;
+    }
+
+    if (!strcmp(argv[1], "enable")) {
+        hwmon_enable_task(TRUE);
+    } else if (!strcmp(argv[1], "disable")) {
+        hwmon_enable_task(FALSE);
+    } 
     
     return VOS_OK;
 }
 
-int send_echo_cmd(int argc, char **argv)
+int cli_set_hwmon_node(int argc, char **argv)
+{
+    if (argc < 4) {
+        vos_print("usage: hm_config <node> <param> <value> \r\n");
+        return VOS_OK;
+    }
+
+    if ( hwmon_set_node_cfg(argv[1], argv[2], argv[3]) != VOS_OK ) {
+         return VOS_ERR;
+    } 
+    
+    return VOS_OK;
+}
+
+
+int cli_send_echo_cmd(int argc, char **argv)
 {
     int ret;
     DEVM_MSG_S tx_msg;
     DEVM_MSG_S rx_msg;
     char time_str[64];
 
-    tx_msg.cmd_type     = CMD_TYPE_ECHO;
+    tx_msg.msg_type     = MSG_TYPE_ECHO;
     tx_msg.need_ack     = TRUE;
     fmt_time_str(time_str, 64);
     sprintf(tx_msg.msg_payload, "%s echo msg", time_str);
     tx_msg.payload_len  = strlen(tx_msg.msg_payload) + 1;
-    
-    ret = devm_send_msg(APP_ORAN_DAEMON, &tx_msg, &rx_msg);
+
+    char *app_id = (argc < 2) ? APP_ORAN_DAEMON : argv[1];
+    ret = devm_send_msg(app_id, &tx_msg, &rx_msg);
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, devm_send_msg failed(%d)", __FILE__, __LINE__, ret);
         return ret;
     } 
 
-    printf("echo: %d, %s \n", rx_msg.ack_value, rx_msg.msg_payload);
+    vos_print("echo: %d, %s \r\n", rx_msg.ack_value, rx_msg.msg_payload);
     
     return VOS_OK;
 }
@@ -399,10 +525,16 @@ int send_echo_cmd(int argc, char **argv)
  *************************************************************************/
 int hwmon_cmd_reg()
 {
-    cli_cmd_reg("jsontest",         "json parse test",          &cli_json_test);
-    cli_cmd_reg("hwmonlist",        "show hwmon list",          &hwmon_list_show);
-    cli_cmd_reg("echocmd",          "send echo cmd",            &send_echo_cmd);
+    cli_cmd_reg("hm_list",          "show hwmon list",          &cli_show_hwmon_list);
+    cli_cmd_reg("hm_history",       "show hwmon history",       &cli_show_hwmon_history);
+    cli_cmd_reg("hm_enable",        "enable hwmon task",        &cli_enable_hwmon_task);
+    cli_cmd_reg("hm_config",        "config hwmon param",       &cli_set_hwmon_node);
     
+#ifndef DAEMON_RELEASE    
+    cli_cmd_reg("jsontest",        "json parse test",          &cli_json_test);
+    cli_cmd_reg("echotest",        "send echo cmd",            &cli_send_echo_cmd);
+#endif
+
     return VOS_OK;
 }
 #endif
@@ -416,17 +548,17 @@ int hwmon_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
     if (!rx_msg) return VOS_ERR;
     
     hwmon_msg = (HWMON_MSG_S *)rx_msg->msg_payload;
-    printf("hwmon_msg_proc: %d(%s) fault %d\n", hwmon_msg->node_id, hwmon_msg->node_desc, hwmon_msg->fault_state);
+    vos_print("hwmon_msg_proc: %d(%s) fault %d\n", hwmon_msg->node_id, hwmon_msg->node_desc, hwmon_msg->fault_state);
 
     return VOS_OK;
 }
 
-int echo_cmd_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
+int echo_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
 {
     if (!rx_msg) return VOS_ERR;
     if (!tx_msg) return VOS_ERR;
     
-    printf("echo_cmd_proc: %s\n", rx_msg->msg_payload);
+    vos_print("echo_msg_proc: %s\n", rx_msg->msg_payload);
     memcpy((char *)tx_msg, (char *)rx_msg, sizeof(DEVM_MSG_S));
     tx_msg->need_ack    = FALSE;
     tx_msg->ack_value   = 1234;
@@ -456,8 +588,8 @@ int hwmon_init(char *file_name)
     hwmon_config_override();
 
 #ifdef HWMON_MSG_DEMO 
-    devm_set_msg_func(CMD_TYPE_HWMON, hwmon_msg_proc);
-    devm_set_msg_func(CMD_TYPE_ECHO,  echo_cmd_proc);
+    devm_set_msg_func(MSG_TYPE_HWMON,   hwmon_msg_proc);
+    devm_set_msg_func(MSG_TYPE_ECHO,    echo_msg_proc);
 #endif
     
     //start check task

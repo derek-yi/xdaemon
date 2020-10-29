@@ -4,6 +4,7 @@
 
 #include "drv_main.h"
 
+#ifdef INCLUDE_ADRV9009
 
 int adrv9009_reg_read(int chip_id, int reg_addr)
 {
@@ -43,5 +44,5 @@ int adrv9009_pll_locked  (int chip_id)
     
     return VOS_OK;
 }
-
+#endif
 

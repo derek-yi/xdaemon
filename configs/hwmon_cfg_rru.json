@@ -50,12 +50,6 @@
 			"//param": "reg_addr mask exp_val",
 			"param": [0x85000010, 0xffff, 0x28]
 		},
-		"fpga.reg.dump1": {
-			"function": "fpga_reg_dump",
-			"interval": 600,
-			"//param": "base_addr reg_cnt",
-			"param": [0x85000010, 16]
-		},
 		"9544.reg.check1": {
 			"function": "ad9544_reg_check",
 			"interval": 20,
@@ -66,12 +60,6 @@
 			"function": "ad9544_pll_check",
 			"interval": 5,
 			"repeat": 3
-		},
-		"9544.reg.dump": {
-			"function": "ad9544_reg_dump",
-			"interval": 600,
-			"//param": "base_addr reg_cnt",
-			"param": [0, 10]
 		},
 		"9528.reg.check1": {
 			"function": "ad9528_reg_check",
@@ -84,12 +72,6 @@
 			"interval": 5,
 			"repeat": 3
 		},
-		"9528.reg.dump": {
-			"function": "ad9528_reg_dump",
-			"interval": 600,
-			"//param": "base_addr reg_cnt",
-			"param": [0x500, 10]
-		},
 		"9009.reg.check1": {
 			"function": "adrv9009_reg_check",
 			"interval": 20,
@@ -101,12 +83,6 @@
 			"interval": 5,
 			"repeat": 3,
 			"param": [0]
-		},
-		"9009.reg.dump": {
-			"function": "adrv9009_reg_dump",
-			"interval": 600,
-			"//param": "chip_id base_addr reg_cnt",
-			"param": [0, 0x500, 10]
-		}			
+		}
     }
 }

@@ -33,9 +33,10 @@ typedef struct CMD_NODE
 
 char    cli_cmd_buff[CMD_BUFF_MAX];
 uint32  cli_cmd_ptr = 0;
+int     telnet_fd = -1;
 
 CMD_NODE  *gst_cmd_list  = NULL;
-uint32     cmd_exit_flag  = 0;
+uint32     pwd_check_ok = FALSE;
 
 int vos_print(const char * format,...)
 {
@@ -47,7 +48,11 @@ int vos_print(const char * format,...)
     len = vsnprintf(buf, CMD_BUFF_MAX-1, format, args);
     va_end(args);
 
-    printf("%s", buf);
+    if ( cli_telnet_active() ) {
+        write(telnet_fd, buf, len);
+    } else {
+        printf("%s", buf);
+    }
 
     return len;    
 }
@@ -101,6 +106,21 @@ uint32 cli_param_format(char *param, char **argv, uint32 max_cnt)
     return cnt;
 }
 
+void cli_show_match_cmd(char *cmd_buf, uint32 key_len)
+{
+    CMD_NODE *pNode;
+
+    pNode = gst_cmd_list;
+    while (pNode != NULL)
+    {
+        if(strncmp(pNode->cmd_str, cmd_buf, key_len) == 0)
+        {
+            vos_print("%-24s -- %-45s \r\n", pNode->cmd_str, pNode->help_str);
+        }
+        pNode = pNode->pNext;
+    }
+}
+
 int cli_cmd_exec(char *buff)
 {
     uint32  cmd_key_len;
@@ -135,10 +155,24 @@ int cli_cmd_exec(char *buff)
         pNode = pNode->pNext;
     }
 
+#ifdef CLI_PWD_CHECK
+    if (pwd_check_ok != TRUE) {
+        if ( (strncmp("passwd", buff, cmd_key_len) != 0)  &&
+             (strncmp("quit", buff, cmd_key_len) != 0) ){
+            vos_print("input 'passwd' to verify password, or input 'quit' to exit \r\n");
+            return CMD_OK; 
+        }
+    }
+#endif
+
     if (pNode == NULL)
     {
+    #ifndef CLI_WITHOUT_SHELL
         rc = system(buff);
-        if (rc < 0) printf("cmd: %s, error(0x%x): %s", buff, rc, strerror(errno));
+        if (rc < 0) printf("cmd: %s, error(0x%x): %s \r\n", buff, rc, strerror(errno));
+    #else
+        vos_print("unknown cmd: %s \r\n", buff);
+    #endif
         return CMD_OK; 
     }
 
@@ -159,7 +193,9 @@ int cli_cmd_exec(char *buff)
         
         if(iNode != NULL)
         {
-            return CMD_ERR_AMBIGUOUS;
+            cli_show_match_cmd(buff, cmd_key_len);
+            return CMD_OK;
+            //return CMD_ERR_AMBIGUOUS;
         }
     }
 #endif    
@@ -174,6 +210,7 @@ int cli_cmd_exec(char *buff)
 int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func)
 {
     CMD_NODE *new_node;
+    CMD_NODE *p, *q;
     
     new_node = (CMD_NODE *)malloc(sizeof(CMD_NODE));
     if(new_node == NULL)
@@ -186,19 +223,39 @@ int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func)
     new_node->cmd_func = func;
     new_node->cmd_str = (char *)strdup(cmd);
     new_node->help_str = (char *)strdup(help);
+    new_node->pNext = NULL;
 
     printf("cli_cmd_reg: %s(%s) \r\n", new_node->cmd_str, new_node->help_str);
-    new_node->pNext = gst_cmd_list;
-    gst_cmd_list = new_node;
+    q = NULL;
+    p = gst_cmd_list;
+    while (p != NULL) {
+        if (strcmp(p->cmd_str, new_node->cmd_str) > 0) {
+            if (q == NULL) { //add to head
+                new_node->pNext = p;
+                gst_cmd_list = new_node;
+            } else { //q -> new_node -> p
+                q->pNext = new_node;
+                new_node->pNext = p;
+            }
+            return VOS_OK;
+        }
+        q = p;
+        p = p->pNext;
+    }
+
+    if (q != NULL) { //add to tail
+        q->pNext = new_node;
+    } else { //first node
+        gst_cmd_list = new_node;
+    }
 
     return CMD_OK;
 }
 
 int cli_do_exit(int argc, char **argv)
 {
-    cmd_exit_flag = 1;
-    
-    return CMD_OK;
+    vos_print("exit cmd ... \r\n");
+    return CMD_ERR_EXIT;
 }
 
 int cli_do_param_test(int argc, char **argv)
@@ -209,6 +266,23 @@ int cli_do_param_test(int argc, char **argv)
         vos_print("%d: %s\r\n", i, argv[i]);
     }
     
+    return CMD_OK;
+}
+
+int cli_do_passwd_verify(int argc, char **argv)
+{
+    if (argc < 2) {
+        vos_print("usage: %s <passwd_str> \r\n", argv[0]);
+        return CMD_OK;
+    }
+
+    if (memcmp("foxconn", argv[1], 7) != 0) {  //todo
+        vos_print("invalid password \r\n");
+        return CMD_OK;
+    }
+
+    pwd_check_ok = TRUE;
+    vos_print("password verified OK \r\n");
     return CMD_OK;
 }
 
@@ -225,7 +299,7 @@ int cli_do_show_version(int argc, char **argv)
 int cli_do_help(int argc, char **argv)
 {
     CMD_NODE *pNode;
-    
+
     pNode = gst_cmd_list;
     while(pNode != NULL)
     {
@@ -238,11 +312,26 @@ int cli_do_help(int argc, char **argv)
 
 void cli_cmd_init(void)
 {
-    //gst_cmd_list = NULL;
     cli_cmd_reg("quit",         "exit app",             &cli_do_exit);
     cli_cmd_reg("help",         "cmd help",             &cli_do_help);
-    cli_cmd_reg("version",      "show version",         &cli_do_show_version);
+    //cli_cmd_reg("version",      "show version",         &cli_do_show_version);
     cli_cmd_reg("cmdtest",      "cmd param test",       &cli_do_param_test);
+    cli_cmd_reg("passwd",       "password verify",      &cli_do_passwd_verify);
+}
+
+int cli_do_spec_char(char c)
+{
+    if (c == '\b') {
+        //printf("recv backspace\n");
+        if (cli_cmd_ptr > 0) {
+            cli_cmd_ptr--;
+            cli_cmd_buff[cli_cmd_ptr] = 0;
+            vos_print("\b");
+            return TRUE;
+        }
+    }
+    
+    return FALSE;   //not special char
 }
 
 void cli_buf_insert(char c)
@@ -265,38 +354,90 @@ void cli_prompt(void)
 void cli_main_task(void)
 {
     char ch;
-    int rc;
+    int ret;
 
-    cli_cmd_init();
     cli_prompt();
-    
-    while(!cmd_exit_flag)    
+    while(1)    
     {
-        ch = getchar();    
-
-        if (ch == '\n')
-        {
-            rc = cli_cmd_exec(cli_cmd_buff);
-            if(rc != CMD_OK)
-            {
-                if(rc == CMD_ERR_AMBIGUOUS)
-                    vos_print("# ambiguous command\r\n");
-                else if(rc == CMD_ERR_NOT_MATCH)
-                    vos_print("# unknown command\r\n");
-                else
-                    vos_print("# command exec error\r\n");
+        if (cli_telnet_active()) {
+            vos_msleep(100);
+            continue;
+        }
+        
+        ch = getchar();   
+        if ( (ch == '\r') || (ch == '\n') ) {
+            ret = cli_cmd_exec(cli_cmd_buff);
+            if(ret != CMD_OK){
+                if (ret == CMD_ERR_NOT_MATCH) vos_print("unknown command\r\n");
+                else if (ret == CMD_ERR_EXIT) break;
+                else vos_print("command exec error\r\n");
             }
             
             memset(cli_cmd_buff, 0, CMD_BUFF_MAX);
             cli_cmd_ptr = 0;
-            
             cli_prompt();
+        } else if (cli_do_spec_char(ch)) {
+            //null
         }
-        else
-        {
+        else {
             cli_buf_insert(ch);
         }
     }
 }
 
+int cli_telnet_active()
+{
+    return telnet_fd >= 0;
+}
+
+void cli_telnet_task(int fd)
+{
+    char buf[CMD_BUFF_MAX];
+    char ch;
+    int len, ret;
+
+    if (cli_telnet_active()) {
+        return ;
+    }
+
+    pwd_check_ok = FALSE;
+    telnet_fd = fd;
+    cli_prompt();
+    while(1)    
+    {
+        //cli_prompt();
+        len  = read(telnet_fd, buf, CMD_BUFF_MAX);
+        if (len <= 0) { 
+            break;
+        }
+
+        for (int i = 0; i < len; i++) {
+            ch = buf[i];
+            if ( (ch == '\r') || (ch == '\n') ) {
+                vos_print("\r\n");
+                ret = cli_cmd_exec(cli_cmd_buff);
+                if (ret != CMD_OK) {
+                    if (ret == CMD_ERR_NOT_MATCH) vos_print("unknown command\r\n");
+                    else if (ret == CMD_ERR_EXIT) goto TASK_EXIT;
+                    else vos_print("command exec error\r\n");
+                }
+                
+                memset(cli_cmd_buff, 0, CMD_BUFF_MAX);
+                cli_cmd_ptr = 0;
+                cli_prompt();
+            } else if (cli_do_spec_char(ch)) {
+                //null
+            }
+            else {
+                cli_buf_insert(ch);
+                vos_print("%c", ch);
+            }
+        }
+    }
+    
+TASK_EXIT:    
+    memset(cli_cmd_buff, 0, CMD_BUFF_MAX);
+    cli_cmd_ptr = 0;
+    telnet_fd = -1;
+}
 

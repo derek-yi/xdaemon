@@ -52,9 +52,11 @@
 /* we need getpty() */
 #define __USE_GNU 1
 #define __USE_XOPEN 1
+#define __USE_XOPEN_EXTENDED    //yihonglang add
 #include <stdlib.h>
 #undef __USE_GNU
 #undef __USE_XOPEN
+#undef __USE_XOPEN_EXTENDED
 
 #include <errno.h>
 #include <netinet/in.h>
