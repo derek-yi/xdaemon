@@ -9,7 +9,7 @@
 echo 0x000d > /sys/devices/soc0/amba/e0007000.spi/spi_master/spi1/spi1.0/ad9544
 cat /sys/devices/soc0/amba/e0007000.spi/spi_master/spi1/spi1.0/ad9544
 */    
-int clk_ad9544_reg_read(int chip_id, int reg_addr)
+int clk_ad9544_reg_read(uint32 chip_id, uint32 reg_addr)
 {
     int ret;
     char cmd_buf[16];
@@ -27,7 +27,20 @@ int clk_ad9544_reg_read(int chip_id, int reg_addr)
     return ret;
 }
 
-int drv_ad9544_pll_locked  (int chip_id)
+int clk_ad9544_reg_write(uint32 chip_id, uint32 reg_addr, uint32 value)
+{
+    int ret;
+    char cmd_buf[32];
+    char *sys_node = "/sys/devices/soc0/amba/e0007000.spi/spi_master/spi1/spi1.0/ad9544";
+
+    //ad9544_attr_store
+    snprintf(cmd_buf, sizeof(cmd_buf), "0x%x:0x%x", reg_addr, value);
+    ret = sys_node_writestr(sys_node, cmd_buf);
+
+    return ret;
+}
+
+int drv_ad9544_pll_locked  (uint32 chip_id)
 {
     int ret;
 	char buf[16];
@@ -42,7 +55,7 @@ int drv_ad9544_pll_locked  (int chip_id)
     return VOS_OK;
 }
 
-int clk_ad9528_reg_read(int chip_id, int reg_addr)
+int clk_ad9528_reg_read(uint32 chip_id, uint32 reg_addr)
 {
     int ret;
     int rd_value;
@@ -57,6 +70,20 @@ int clk_ad9528_reg_read(int chip_id, int reg_addr)
     return rd_value;
 }
 
+int clk_ad9528_reg_write(uint32 chip_id, uint32 reg_addr, uint32 value)
+{
+    int ret;
+    char cmd_buf[32];
+    char *sys_node = "/sys/kernel/debug/iio/iio:device1/direct_reg_access";
+
+    //iio_debugfs_write_reg
+    snprintf(cmd_buf, sizeof(cmd_buf), "0x%x 0x%x", reg_addr, value);
+    ret = sys_node_writestr(sys_node, cmd_buf);
+
+    return ret;
+}
+
+
 /*
 0xEB:  high< 1110 1011 >low
 cat /sys/devices/soc0/amba/e0006000.spi/spi_master/spi0/spi0.0/iio:device1/pll1_locked 
@@ -68,7 +95,7 @@ cat /sys/devices/soc0/amba/e0006000.spi/spi_master/spi0/spi0.0/iio:device1/vcxo_
 cat /sys/devices/soc0/amba/e0006000.spi/spi_master/spi0/spi0.0/iio:device1/pll1_feedback_clk_present
 cat /sys/devices/soc0/amba/e0006000.spi/spi_master/spi0/spi0.0/iio:device1/pll2_feedback_clk_present
 */
-int drv_ad9528_pll_locked  (int chip_id)
+int drv_ad9528_pll_locked  (uint32 chip_id)
 {
     if (clk_ad9528_reg_read(0, 0x508) != 0XEB) {
         return VOS_ERR;
@@ -77,7 +104,7 @@ int drv_ad9528_pll_locked  (int chip_id)
     return VOS_OK;
 }
 
-int clk_9FGV100X_reg_read(int chip_id, int reg_addr)
+int clk_9FGV100X_reg_read(uint32 chip_id, uint32 reg_addr)
 {
     return VOS_OK;
 }

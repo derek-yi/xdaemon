@@ -668,7 +668,7 @@ int adrv9009_isr_check(void *self, void *cookie)
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
                 xlog(XLOG_HWMON, "HWMON MSG: AD9009 ISR WARN");
-                hwmon_send_msg(NODE_ID_AD9009A_REG, node->base_cfg.node_desc, CRITICAL); //todo
+                hwmon_send_msg(NODE_ID_AD9009_FAULT, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
 
@@ -686,7 +686,7 @@ int adrv9009_isr_check(void *self, void *cookie)
         }
     } else  {
         if (node->fault_state != NO_FAULT) {
-            hwmon_send_msg(NODE_ID_AD9009A_REG, node->base_cfg.node_desc, NO_FAULT);
+            hwmon_send_msg(NODE_ID_AD9009_FAULT, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
         node->fault_cnt = 0;

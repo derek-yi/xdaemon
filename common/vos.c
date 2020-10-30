@@ -68,7 +68,7 @@ int pipe_read(char *cmd_str, char *buff, int buf_len)
     
 	fp = popen(cmd_str, "r");
     if (fp == NULL) {
-        fprintf(stderr, "popen failed(%s), cmd(%s)\n", strerror(errno), cmd_str);
+        vos_print("popen failed(%s), cmd(%s)\n", strerror(errno), cmd_str);
         return VOS_ERR;
     }
     
@@ -89,7 +89,7 @@ int sys_node_readstr(char *node_str, char *rd_buf, int buf_len)
     snprintf(cmd_buf, sizeof(cmd_buf), "cat %s", node_str);
 	fp = popen(cmd_buf, "r");
     if (fp == NULL) {
-        fprintf(stderr, "popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
+        vos_print("popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
         return VOS_ERR;
     }
     
@@ -111,7 +111,7 @@ int sys_node_read(char *node_str, int *value)
     snprintf(cmd_buf, sizeof(cmd_buf), "cat %s", node_str);
 	fp = popen(cmd_buf, "r");
     if (fp == NULL) {
-        fprintf(stderr, "popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
+        vos_print("popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
         return VOS_ERR;
     }
     
@@ -121,6 +121,24 @@ int sys_node_read(char *node_str, int *value)
     if (value) {
         *value = (int)strtoul(rd_buf, 0, 0);
     }
+    
+    return VOS_OK;
+}
+
+int sys_node_writestr(char *node_str, char *wr_buf)
+{
+    FILE *fp;
+    char cmd_buf[256];
+
+    if (node_str == NULL) return VOS_ERR;
+
+    snprintf(cmd_buf, sizeof(cmd_buf), "echo %s > %s", wr_buf, node_str);
+    fp = popen(cmd_buf, "r");
+    if (fp == NULL) {
+        vos_print("popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
+        return VOS_ERR;
+    }
+    pclose(fp);
     
     return VOS_OK;
 }
@@ -135,7 +153,7 @@ int sys_node_write(char *node_str, int value)
     snprintf(cmd_buf, sizeof(cmd_buf), "echo 0x%x > %s", value, node_str);
     fp = popen(cmd_buf, "r");
     if (fp == NULL) {
-        fprintf(stderr, "popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
+        vos_print("popen failed(%s), cmd(%s)\n", strerror(errno), cmd_buf);
         return VOS_ERR;
     }
     pclose(fp);
@@ -160,7 +178,7 @@ int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, vo
 	evp.sigev_notify = SIGEV_THREAD;
 	evp.sigev_notify_function = callback;
 	if (timer_create(CLOCK_REALTIME, &evp, &timerid) == -1) {
-        fprintf(stderr, "timer_create failed(%s)\n", strerror(errno));
+        vos_print("timer_create failed(%s)\n", strerror(errno));
 		return 1;
 	}
 	
@@ -171,7 +189,7 @@ int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, vo
 	it.it_value.tv_sec = interval;
 	it.it_value.tv_nsec = 0;
 	if (timer_settime(timerid, 0, &it, NULL) == -1) {
-        fprintf(stderr, "timer_settime failed(%s)\n", strerror(errno));
+        vos_print("timer_settime failed(%s)\n", strerror(errno));
         timer_delete(timerid);
 		return 1;
 	}
@@ -206,7 +224,7 @@ int shell_run_cmd(char *cmd_str)
     status = system(cmd_str);
     if (status < 0)
     {
-        fprintf(stderr, "cmd: %s, error: %s", cmd_str, strerror(errno));
+        vos_print("cmd: %s, error: %s", cmd_str, strerror(errno));
         return status;
     }
      
@@ -229,22 +247,4 @@ int shell_run_cmd(char *cmd_str)
     return VOS_OK;
 }
 
-int shell_run_file(char *file_name)
-{
-#if XXX // todo
-    printf("current path: %s \n", getcwd(NULL, NULL));
-    
-    if ( access(file_name, F_OK)  < 0 ) {
-        fprintf(stderr, "file %s not exist\n", file_name);
-        return VOS_ERR;
-    }
-    
-    if ( access(file_name, X_OK)  < 0 ) {
-        fprintf(stderr, "file %s not executable\n", file_name);
-        return VOS_ERR;
-    }
-#endif 
-
-    return shell_run_cmd(file_name);
-}
 

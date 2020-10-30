@@ -45,7 +45,7 @@ int vos_print(const char * format,...)
     int len;
 
     va_start(args, format);
-    len = vsnprintf(buf, CMD_BUFF_MAX-1, format, args);
+    len = vsnprintf(buf, CMD_BUFF_MAX, format, args);
     va_end(args);
 
     if ( cli_telnet_active() ) {
@@ -157,8 +157,8 @@ int cli_cmd_exec(char *buff)
 
 #ifdef CLI_PWD_CHECK
     if (pwd_check_ok != TRUE) {
-        if ( (strncmp("passwd", buff, cmd_key_len) != 0)  &&
-             (strncmp("quit", buff, cmd_key_len) != 0) ){
+        if ( (strncmp("passwd", buff, 6) != 0)  &&
+             (strncmp("quit", buff, 4) != 0) ){
             vos_print("input 'passwd' to verify password, or input 'quit' to exit \r\n");
             return CMD_OK; 
         }
@@ -428,9 +428,13 @@ void cli_telnet_task(int fd)
             } else if (cli_do_spec_char(ch)) {
                 //null
             }
-            else {
+            else if (ch > 0x1f && ch < 0x7f){
                 cli_buf_insert(ch);
-                vos_print("%c", ch);
+                if ( (!pwd_check_ok) && (cli_cmd_ptr > 7) ) {
+                    vos_print("*");
+                } else {
+                    vos_print("%c", ch);
+                }
             }
         }
     }

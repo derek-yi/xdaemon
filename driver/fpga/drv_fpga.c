@@ -34,7 +34,6 @@ return VOS_OK;
 //bbu_rru_CT_to_cmcc.sh
 int bbu_rru_CT_to_cmcc()
 {
-    //shell_run_file(file_name);
     return VOS_OK;
 }
 

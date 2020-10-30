@@ -150,7 +150,7 @@ int xlog(int level, const char *format, ...)
     }
     
     va_start(args, format);
-    len = vsnprintf(buf, XLOG_BUFF_MAX-1, format, args);
+    len = vsnprintf(buf, XLOG_BUFF_MAX, format, args);
     va_end(args);
 
     fmt_time_str(time_str, 64);

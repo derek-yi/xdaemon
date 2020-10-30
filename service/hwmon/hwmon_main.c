@@ -356,12 +356,15 @@ int hwmon_send_msg(int node_id, char *node_desc, int fault_state)
     tx_msg.need_ack     = FALSE;
     tx_msg.payload_len  = sizeof(HWMON_MSG_S);
     
-    snprintf(msg_data->node_desc, 60, "%s", node_desc);
+    snprintf(msg_data->node_desc, DESC_MAX_LEN, "%s", node_desc);
     msg_data->node_id = node_id;
     msg_data->fault_state = fault_state;
-    
+
+ #ifdef __ARM_ARCH //上板调试    
     ret = devm_send_msg(APP_ORAN_MP, &tx_msg, NULL);
-    //ret = devm_send_msg(APP_ORAN_DAEMON, &tx_msg, NULL); //debug only
+ #else
+    ret = devm_send_msg(APP_ORAN_DAEMON, &tx_msg, NULL); //debug on x86
+#endif    
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, devm_send_msg failed(%d)", __FILE__, __LINE__, ret);
     } 
@@ -548,7 +551,7 @@ int hwmon_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
     if (!rx_msg) return VOS_ERR;
     
     hwmon_msg = (HWMON_MSG_S *)rx_msg->msg_payload;
-    vos_print("hwmon_msg_proc: %d(%s) fault %d\n", hwmon_msg->node_id, hwmon_msg->node_desc, hwmon_msg->fault_state);
+    vos_print("hwmon_msg_proc: %d(%s) fault %d \r\n", hwmon_msg->node_id, hwmon_msg->node_desc, hwmon_msg->fault_state);
 
     return VOS_OK;
 }
@@ -558,7 +561,7 @@ int echo_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
     if (!rx_msg) return VOS_ERR;
     if (!tx_msg) return VOS_ERR;
     
-    vos_print("echo_msg_proc: %s\n", rx_msg->msg_payload);
+    vos_print("echo_msg_proc: %s \r\n", rx_msg->msg_payload);
     memcpy((char *)tx_msg, (char *)rx_msg, sizeof(DEVM_MSG_S));
     tx_msg->need_ack    = FALSE;
     tx_msg->ack_value   = 1234;

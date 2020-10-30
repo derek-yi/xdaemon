@@ -6,7 +6,7 @@
 
 #ifdef INCLUDE_ADRV9009
 
-int adrv9009_reg_read(int chip_id, int reg_addr)
+int adrv9009_reg_read(uint32 chip_id, uint32 reg_addr)
 {
     int ret;
     int rd_value;
@@ -25,7 +25,7 @@ int adrv9009_reg_read(int chip_id, int reg_addr)
     return rd_value;
 }
 
-int adrv9009_pll_locked  (int chip_id)
+int adrv9009_pll_locked  (uint32 chip_id)
 {
     int ret;
     char buf[16] = {0};

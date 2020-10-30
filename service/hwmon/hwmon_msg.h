@@ -12,8 +12,9 @@ typedef enum fault_severityT {
 } fault_severity_t;
 #endif
 
+#define DESC_MAX_LEN    64
 typedef struct {
-    char node_desc[64]; //reserved
+    char node_desc[DESC_MAX_LEN]; //reserved
     int  node_id;
     int  fault_state;   //fault_severity_t
 }HWMON_MSG_S;
@@ -146,6 +147,13 @@ affect: "ad9009-n2"
 text  : "CRITICAL-"LO out of lock", NO_FAULT-"null"
 */
 #define NODE_ID_AD9009B_PLL                 1143
+
+/*
+source: PA //fault_source_t
+affect: "ad9009"
+text  : "CRITICAL-"Fault in ISR", NO_FAULT-"null"
+*/
+#define NODE_ID_AD9009_FAULT                1144
 
 /*******************************************************************************************************
  * END

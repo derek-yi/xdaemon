@@ -12,19 +12,23 @@ int drv_module_exit();
 
 int drv_get_board_temp(int temp_id, int *temp_val);
 
-int clk_ad9544_reg_read(int chip_id, int reg_addr);
+int clk_ad9544_reg_read(uint32 chip_id, uint32 reg_addr);
 
-int drv_ad9544_pll_locked  (int chip_id);
+int clk_ad9544_reg_write(uint32 chip_id, uint32 reg_addr, uint32 value);
 
-int clk_ad9528_reg_read(int chip_id, int reg_addr);
+int drv_ad9544_pll_locked  (uint32 chip_id);
 
-int drv_ad9528_pll_locked  (int chip_id);
+int clk_ad9528_reg_read(uint32 chip_id, uint32 reg_addr);
 
-int clk_9FGV100X_reg_read(int chip_id, int reg_addr);
+int clk_ad9528_reg_write(uint32 chip_id, uint32 reg_addr, uint32 value);
 
-int adrv9009_reg_read(int chip_id, int reg_addr);
+int drv_ad9528_pll_locked  (uint32 chip_id);
 
-int adrv9009_pll_locked  (int chip_id);
+int clk_9FGV100X_reg_read(uint32 chip_id, uint32 reg_addr);
+
+int adrv9009_reg_read(uint32 chip_id, uint32 reg_addr);
+
+int adrv9009_pll_locked  (uint32 chip_id);
 
 int drv_fan_get_speed(int fan_id, int *speed);
 

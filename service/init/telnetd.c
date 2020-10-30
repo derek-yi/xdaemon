@@ -59,7 +59,7 @@ void* telnet_listen_task(void *param)
             perror("accept");
             continue;
         } else {
-            printf("Server: connect from host %s, port %hd.\n", 
+            printf("Server: connect from host %s, port %d.\n", 
                     inet_ntoa (sa.sin_addr), ntohs (sa.sin_port));        
             cli_telnet_task(fd);
             close(fd);

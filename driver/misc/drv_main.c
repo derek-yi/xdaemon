@@ -56,6 +56,26 @@ int cli_ad9544_read(int argc, char **argv)
     return 0;
 }
 
+int cli_ad9544_write(int argc, char **argv)
+{
+    uint32 reg_addr;
+    uint32 reg_value;
+
+    if (argc < 3) {
+        vos_print("usage: %s <addr> <value> \r\n", argv[0]);
+        return 0;
+    }
+
+    reg_addr = (uint32)strtoul(argv[1], 0, 0);
+    reg_value = (uint32)strtoul(argv[2], 0, 0);
+
+    clk_ad9544_reg_write(0, reg_addr, reg_value);
+    reg_value = clk_ad9544_reg_read(0, reg_addr);
+    vos_print("REG: [0x%08x] = 0x%x \r\n", reg_addr, reg_value);
+
+    return 0;
+}
+
 int cli_ad9528_read(int argc, char **argv)
 {
     uint32 base_addr;
@@ -76,6 +96,26 @@ int cli_ad9528_read(int argc, char **argv)
         vos_print("REG: [0x%08x] = 0x%x \r\n", base_addr + i, value);
     }
     
+    return 0;
+}
+
+int cli_ad9528_write(int argc, char **argv)
+{
+    uint32 reg_addr;
+    uint32 reg_value;
+
+    if (argc < 3) {
+        vos_print("usage: %s <addr> <value> \r\n", argv[0]);
+        return 0;
+    }
+
+    reg_addr = (uint32)strtoul(argv[1], 0, 0);
+    reg_value = (uint32)strtoul(argv[2], 0, 0);
+
+    clk_ad9528_reg_write(0, reg_addr, reg_value);
+    reg_value = clk_ad9528_reg_read(0, reg_addr);
+    vos_print("REG: [0x%08x] = 0x%x \r\n", reg_addr, reg_value);
+
     return 0;
 }
 
@@ -104,27 +144,25 @@ int cli_ad9009_read(int argc, char **argv)
     return 0;
 }
 
-
 int cli_devmem_read(int argc, char **argv)
 {
-    uint32 mem_addr;
-    uint32 value;
-    int access_type = AT_WORD;
+    uint32 base_addr;
+    uint32 rd_cnt = 1;
 
     if (argc < 2) {
-        vos_print("usage: %s <addr> [<b|h|w>] \r\n", argv[0]);
+        vos_print("usage: %s <addr> [<cnt>]\r\n", argv[0]);
         return 0;
     }
 
-    mem_addr = (uint32)strtoul(argv[1], 0, 0);
+    base_addr = (uint32)strtoul(argv[1], 0, 0);
     if (argc > 2) {
-        if (argv[2][0] == 'b') access_type = AT_BYTE;
-        if (argv[2][0] == 'h') access_type = AT_SHORT;
-        if (argv[2][0] == 'w') access_type = AT_WORD;
+       rd_cnt = (uint32)strtoul(argv[2], 0, 0);
     }
-    
-    value = devmem_read(mem_addr, access_type);
-    vos_print("memread: [0x%08x] = 0x%x \r\n", mem_addr, value);
+
+    for (int i = 0; i < rd_cnt; i++) {
+        uint32 value = devmem_read(base_addr + i*4, AT_WORD);
+        vos_print("MEM_RD: [0x%08x] = 0x%x \r\n", base_addr + i*4, value);
+    }
     
     return 0;
 }
@@ -150,25 +188,56 @@ int cli_devmem_write(int argc, char **argv)
     
     value = devmem_write(mem_addr, access_type, value);
     rd_value = devmem_read(mem_addr, access_type);
-    vos_print("memwrite: 0x%x -> [0x%08x], read 0x%x \r\n", value, mem_addr, rd_value);
+    vos_print("MEM_WR: 0x%x -> [0x%08x], read 0x%x \r\n", value, mem_addr, rd_value);
     
     return 0;
 }
 
+#ifndef DAEMON_RELEASE    
+
+#define OUTPUT_TEMP_FILE   "/tmp/cmd.log" 
 int cli_run_shell(int argc, char **argv)
 {
     int ret;
+    char temp_buf[512];
+    FILE *fp;
 
     if (argc < 2) {
-        vos_print("usage: %s <file_path> \r\n", argv[0]);
+        vos_print("usage: %s <cmd> ... \r\n", argv[0]);
         return 0;
     }
 
-    ret = shell_run_file(argv[1]);
-    vos_print("cli_run_shell: ret = %d \r\n", ret);
-    
+    memset(temp_buf, 0, sizeof(temp_buf));
+    for(int i = 1; i < argc; i++) {
+        strcat(temp_buf, argv[i]);
+        strcat(temp_buf, " ");
+    }
+    strcat(temp_buf, "> /tmp/cmd.log");
+
+    //vos_print("cmd: %s \r\n", temp_buf);
+    ret = system(temp_buf);
+    if (ret < 0) {
+        vos_print("cmd failed \r\n");
+        return 0;
+    } 
+
+    fp = fopen(OUTPUT_TEMP_FILE, "r");
+    if (fp == NULL) {
+        vos_print("cmd failed \r\n");
+        return VOS_ERR;
+    }
+
+    memset(temp_buf, 0, sizeof(temp_buf));
+    while (fgets(temp_buf, 510, fp) != NULL) {  
+        vos_print("%s", temp_buf);
+        memset(temp_buf, 0, sizeof(temp_buf));
+    }
+
+    fclose(fp);
+    unlink(OUTPUT_TEMP_FILE);    
     return 0;
 }
+#endif
 
 int cli_drv_unit_test(int argc, char **argv)
 {
@@ -295,6 +364,20 @@ int cli_show_version(int argc, char **argv)
     return CMD_OK;
 }
 
+int cli_change_dir(int argc, char **argv)
+{
+    if (argc < 2) {
+        vos_print("usage: %s <path> \r\n", argv[0]);
+        return 0;
+    }
+
+    if ( chdir(argv[1]) == -1 ) {
+        vos_print("cd failed \r\n");
+    }
+    
+    return 0;
+}
+
 int cli_backup_xlog(int argc, char **argv)
 {
     extern int xlog_backup(int force);   
@@ -310,9 +393,12 @@ void drv_cmd_reg()
     cli_cmd_reg("mem_rd",       "devmem read",          &cli_devmem_read);
     cli_cmd_reg("mem_wr",       "devmem write",         &cli_devmem_write);
     cli_cmd_reg("version",      "show version",         &cli_show_version);
+    cli_cmd_reg("cd",           "change dir",           &cli_change_dir);
 
     cli_cmd_reg("rd_ad9544",    "read ad9544 reg",      &cli_ad9544_read);
+    cli_cmd_reg("wr_ad9544",    "write ad9544 reg",     &cli_ad9544_write);
     cli_cmd_reg("rd_ad9528",    "read ad9528 reg",      &cli_ad9528_read);
+    cli_cmd_reg("wr_ad9528",    "write ad9528 reg",     &cli_ad9528_write);
     cli_cmd_reg("rd_ad9009",    "read ad9009 reg",      &cli_ad9009_read);
     
     cli_cmd_reg("rd_reg",       "read FPGA reg",        &cli_devmem_read);
