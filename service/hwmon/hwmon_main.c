@@ -2,7 +2,7 @@
 
 #include "daemon_pub.h"
 
-#include "hwmon_common.h"
+#include "hwmon_main.h"
 #include "hwmon_msg.h"
 #include "devm_msg.h"
 
@@ -437,9 +437,10 @@ int cli_show_hwmon_list(int argc, char **argv)
         if (hwmon_list[i].base_cfg.node_desc) {
             count++;
             vos_print("%s: \r\n", hwmon_list[i].base_cfg.node_desc);
-            vos_print("  => interval=%d repeat=%d param=0x%x|0x%x", 
+            vos_print("  => interval=%d repeat=%d param=0x%x|0x%x|0x%x|0x%x", 
                       hwmon_list[i].base_cfg.interval, hwmon_list[i].base_cfg.repeat_max, 
-                      hwmon_list[i].base_cfg.param[0], hwmon_list[i].base_cfg.param[1]);
+                      hwmon_list[i].base_cfg.param[0], hwmon_list[i].base_cfg.param[1],
+                      hwmon_list[i].base_cfg.param[2], hwmon_list[i].base_cfg.param[3]);
 
             if (hwmon_list[i].base_cfg.priv_cfg != NULL) {
                 vos_print(" priv_cfg(%s=%s)", 

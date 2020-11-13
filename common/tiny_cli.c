@@ -121,6 +121,42 @@ void cli_show_match_cmd(char *cmd_buf, uint32 key_len)
     }
 }
 
+#ifndef DAEMON_RELEASE    
+
+#define OUTPUT_TEMP_FILE   "/tmp/cmd.log" 
+
+int cli_run_shell(char *cmd_buf)
+{
+    int ret;
+    char temp_buf[512];
+    FILE *fp;
+
+    //vos_print("cmd: %s \r\n", cmd_buf);
+    snprintf(temp_buf, sizeof(temp_buf), "%s > /tmp/cmd.log", cmd_buf);
+    ret = system(temp_buf);
+    if (ret < 0) {
+        vos_print("cmd failed \r\n");
+        return 0;
+    } 
+
+    fp = fopen(OUTPUT_TEMP_FILE, "r");
+    if (fp == NULL) {
+        vos_print("cmd failed \r\n");
+        return VOS_ERR;
+    }
+
+    memset(temp_buf, 0, sizeof(temp_buf));
+    while (fgets(temp_buf, 510, fp) != NULL) {  
+        vos_print("%s", temp_buf);
+        memset(temp_buf, 0, sizeof(temp_buf));
+    }
+
+    fclose(fp);
+    unlink(OUTPUT_TEMP_FILE);    
+    return 0;
+}
+#endif
+
 int cli_cmd_exec(char *buff)
 {
     uint32  cmd_key_len;
@@ -167,9 +203,8 @@ int cli_cmd_exec(char *buff)
 
     if (pNode == NULL)
     {
-    #ifndef CLI_WITHOUT_SHELL
-        rc = system(buff);
-        if (rc < 0) printf("cmd: %s, error(0x%x): %s \r\n", buff, rc, strerror(errno));
+    #ifndef DAEMON_RELEASE
+        cli_run_shell(buff);
     #else
         vos_print("unknown cmd: %s \r\n", buff);
     #endif

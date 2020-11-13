@@ -35,4 +35,25 @@ int drv_get_board_temp(int temp_id, int *temp_val)
     return VOS_OK;
 }
 
+// todo
+int drv_get_eeprom_info(int fru_id, FRU_EEPROM_INFO *info)
+{
+    if (fru_id == 1) {
+        info->i2c_bus       = 6;
+        info->dev_id        = 0x50;
+        info->wr_blk_size   = 16;
+        info->rd_blk_size   = 32;
+        info->chip_size     = 256;
+    } else if (fru_id == 0) {
+        info->i2c_bus       = 3;
+        info->dev_id        = 0x54;
+        info->wr_blk_size   = 16;
+        info->rd_blk_size   = 32;
+        info->chip_size     = 1024;
+    } else {
+        return VOS_ERR;
+    }
+    
+    return VOS_OK;
+}
 

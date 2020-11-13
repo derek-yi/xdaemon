@@ -1,6 +1,6 @@
 
-#ifndef _HW_MON_H_
-#define _HW_MON_H_
+#ifndef _HWMON_MAIN_
+#define _HWMON_MAIN_
 
 
 #define CHK_P_NUM           8

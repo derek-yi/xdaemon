@@ -7,7 +7,6 @@
 
 #define CLI_PWD_CHECK 
 
-#define CLI_WITHOUT_SHELL
 
 
 #define CMD_OK                  0x00

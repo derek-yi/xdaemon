@@ -15,7 +15,7 @@ typedef struct {
     char *app_id;
 }SOCK_INFO;
 
-SOCK_INFO sock_list[MAX_CONNECT_NUM] = {0};
+SOCK_INFO sock_list[MAX_CONNECT_NUM];
 
 char *local_app_id = NULL;
 

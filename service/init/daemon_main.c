@@ -3,8 +3,8 @@
 #include "daemon_pub.h"
 
 #include "drv_main.h"
-#include "hwmon_common.h"
-#include "devm_common.h"
+#include "hwmon_main.h"
+#include "devm_main.h"
 #include "devm_msg.h"
 #include "upcfg_main.h"
 

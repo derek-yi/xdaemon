@@ -1,7 +1,7 @@
 
 #include "daemon_pub.h"
 
-#include "hwmon_common.h"
+#include "hwmon_main.h"
 #include "hwmon_msg.h"
 #include "devm_msg.h"
 #include "drv_cpu.h"

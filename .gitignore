@@ -1,14 +1,14 @@
+# ---> C
 # Object files
 *.o
-*.out
 *.ko
 *.obj
 *.elf
 *.cmd
 *.mod
 *.mod.c
-*.symvers
 *.order
+*.symvers
 
 # Precompiled Headers
 *.gch
@@ -37,4 +37,4 @@ daemon_app
 
 # Debug files
 *.dSYM/
-*.su
+

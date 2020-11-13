@@ -186,58 +186,12 @@ int cli_devmem_write(int argc, char **argv)
         if (argv[2][0] == 'w') access_type = AT_WORD;
     }
     
-    value = devmem_write(mem_addr, access_type, value);
+    devmem_write(mem_addr, access_type, value);
     rd_value = devmem_read(mem_addr, access_type);
     vos_print("MEM_WR: 0x%x -> [0x%08x], read 0x%x \r\n", value, mem_addr, rd_value);
     
     return 0;
 }
-
-#ifndef DAEMON_RELEASE    
-
-#define OUTPUT_TEMP_FILE   "/tmp/cmd.log" 
-int cli_run_shell(int argc, char **argv)
-{
-    int ret;
-    char temp_buf[512];
-    FILE *fp;
-
-    if (argc < 2) {
-        vos_print("usage: %s <cmd> ... \r\n", argv[0]);
-        return 0;
-    }
-
-    memset(temp_buf, 0, sizeof(temp_buf));
-    for(int i = 1; i < argc; i++) {
-        strcat(temp_buf, argv[i]);
-        strcat(temp_buf, " ");
-    }
-    strcat(temp_buf, "> /tmp/cmd.log");
-
-    //vos_print("cmd: %s \r\n", temp_buf);
-    ret = system(temp_buf);
-    if (ret < 0) {
-        vos_print("cmd failed \r\n");
-        return 0;
-    } 
-
-    fp = fopen(OUTPUT_TEMP_FILE, "r");
-    if (fp == NULL) {
-        vos_print("cmd failed \r\n");
-        return VOS_ERR;
-    }
-
-    memset(temp_buf, 0, sizeof(temp_buf));
-    while (fgets(temp_buf, 510, fp) != NULL) {  
-        vos_print("%s", temp_buf);
-        memset(temp_buf, 0, sizeof(temp_buf));
-    }
-
-    fclose(fp);
-    unlink(OUTPUT_TEMP_FILE);    
-    return 0;
-}
-#endif
 
 int cli_drv_unit_test(int argc, char **argv)
 {
@@ -407,7 +361,6 @@ void drv_cmd_reg()
     cli_cmd_reg("wr_ram",       "write FPGA RAM",       &cli_devmem_write); //todo
 
 #ifndef DAEMON_RELEASE    
-    cli_cmd_reg("shell",        "run shell file",       &cli_run_shell);
     cli_cmd_reg("ut_drv",       "drv api unittest",     &cli_drv_unit_test);
     cli_cmd_reg("xlog_bk",      "backup xlog file",     &cli_backup_xlog);
 #endif

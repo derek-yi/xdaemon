@@ -18,7 +18,7 @@ TARGET = daemon_app
 TOP_PATH = $(shell pwd)
 SRC_PATH = common driver service
 
-CFLAGS = -Wall -c -g
+CFLAGS = -Wall -c -std=gnu99 -g 
 LINK_FLAGS += -lrt -lpthread
 
 ##########################################################
@@ -27,7 +27,7 @@ LINK_FLAGS += -lrt -lpthread
 MOD_PATH = $(TOP_PATH)/module
 MOD_LIB_PATH = $(MOD_PATH)/lib
 
-modules = daemon_k
+modules = 
 MODULES_PATH = $(foreach m, $(modules), $(MOD_PATH)/$(m))
 
 ##########################################################

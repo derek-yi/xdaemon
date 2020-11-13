@@ -6,11 +6,22 @@
 
 #define UT_CHECK_VALUE(ret, exp)  { if(ret != exp) vos_print("%d: failed, ret 0x%x, exp 0x%x \n", __LINE__, ret, exp); }
 
+typedef struct 
+{
+    int     i2c_bus;
+    int     dev_id;
+    int     wr_blk_size;
+    int     rd_blk_size;
+    int     chip_size;
+}FRU_EEPROM_INFO;
+
 int drv_module_init(char *cfg_file);
 
 int drv_module_exit();
 
-int drv_get_board_temp(int temp_id, int *temp_val);
+int drv_get_board_temp(int temp_id, int * temp_val);
+
+int drv_get_eeprom_info(int fru_id, FRU_EEPROM_INFO *info);
 
 int clk_ad9544_reg_read(uint32 chip_id, uint32 reg_addr);
 
