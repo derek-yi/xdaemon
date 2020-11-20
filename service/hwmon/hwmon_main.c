@@ -7,7 +7,7 @@
 #include "devm_msg.h"
 
 
-#define HWMON_MAX_NODE      1024
+#define HWMON_MAX_NODE      256
 
 CHK_NODE_INFO_S hwmon_list[HWMON_MAX_NODE];
 
@@ -34,13 +34,13 @@ int hwmon_load_script(char *file_name)
  
 	root_tree = cJSON_Parse(json);
 	if (root_tree == NULL) {
-		xlog(XLOG_ERROR, "pasre json file fail");
+		xlog(XLOG_ERROR, "parse json file fail");
 		goto EXIT_PROC;
 	}
 
 	checklist = cJSON_GetObjectItem(root_tree, "checklist");
 	if (checklist == NULL) {
-		xlog(XLOG_ERROR, "pasre json file fail");
+		xlog(XLOG_ERROR, "parse json file fail");
 		goto EXIT_PROC;
 	}
 
@@ -233,7 +233,6 @@ int hwmon_set_node_cfg(const char *node_desc, char *cfg_str, char *cfg_val)
     return VOS_ERR;
 }
 
-
 /*************************************************************************
  * 使能指定检测点
  * node_desc    - 
@@ -307,7 +306,7 @@ void* hwmon_check_task(void *param)
             vos_msleep(100);
             continue;
         }
-        
+
         gettimeofday(&t_start, NULL);
         for (int i = 0; i < HWMON_MAX_NODE; i++) {
             if ( (hwmon_list[i].enable)
@@ -395,6 +394,7 @@ int cli_json_test(int argc, char **argv)
     cJSON *tree = NULL;
 
     if (argc < 2) {
+        vos_print("usage: %s <file> \r\n", argv[0]);
         return CMD_ERR_PARAM;
     }
 
@@ -424,7 +424,6 @@ int cli_json_test(int argc, char **argv)
 
     return 0;
 }
-
 
 /*************************************************************************
  * 打印所有检测节点信息
@@ -497,7 +496,6 @@ int cli_set_hwmon_node(int argc, char **argv)
     return VOS_OK;
 }
 
-
 int cli_send_echo_cmd(int argc, char **argv)
 {
     int ret;
@@ -523,7 +521,6 @@ int cli_send_echo_cmd(int argc, char **argv)
     return VOS_OK;
 }
 
-
 /*************************************************************************
  * 检测模块命令行注册
  *************************************************************************/
@@ -543,7 +540,7 @@ int hwmon_cmd_reg()
 }
 #endif
 
-#ifdef HWMON_MSG_DEMO 
+#ifndef DAEMON_RELEASE 
 
 int hwmon_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
 {
@@ -576,7 +573,6 @@ int echo_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
 pthread_t hwmon_chk_tid;
 
 timer_t hwmon_chk_timer;
-    
 
 /*************************************************************************
  * 检测模块初始化函数
@@ -591,7 +587,7 @@ int hwmon_init(char *file_name)
     //override check node
     hwmon_config_override();
 
-#ifdef HWMON_MSG_DEMO 
+#ifndef DAEMON_RELEASE 
     devm_set_msg_func(MSG_TYPE_HWMON,   hwmon_msg_proc);
     devm_set_msg_func(MSG_TYPE_ECHO,    echo_msg_proc);
 #endif

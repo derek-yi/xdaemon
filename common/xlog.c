@@ -4,83 +4,40 @@
 #include "xlog.h"
 
 #include <stdarg.h>
+#include <syslog.h>
 
+#define LOG_FILE            0x01
+#define LOG_PRINT           0x02
 
-#define LOG_FILE    0x01
-#define LOG_PRINT   0x02
+#define XLOG_BUFF_MAX       1024
 
 typedef struct _XLOG_CTRL{
     int     fd;
     char    *file_name;
     int     flags;
+    int     facility;
 }XLOG_CTRL_S;
 
 //#define XLOG_KEEP_OPEN
 
 XLOG_CTRL_S xlog_ctrl[XLOG_MAX] = 
 {
-    {-1, "xlog.info.log",   LOG_PRINT},
-    {-1, "xlog.error.log",  LOG_FILE|LOG_PRINT},
-    {-1, "xlog.hwmon.log",  LOG_FILE|LOG_PRINT},
-    {-1, "xlog.devm.log",   LOG_FILE|LOG_PRINT},
-    {-1, NULL, 0},
-    {-1, NULL, 0},
-    {-1, NULL, 0},
-    {-1, NULL, 0},
+    {-1, NULL,   LOG_PRINT, LOG_USER},
+    {-1, "xlog.error.log",  LOG_FILE|LOG_PRINT, LOG_LOCAL0},
+    {-1, "xlog.hwmon.log",  LOG_FILE|LOG_PRINT, LOG_LOCAL1},
+    {-1, "xlog.devm.log",   LOG_FILE|LOG_PRINT, LOG_LOCAL2},
+    {-1, NULL, LOG_PRINT, LOG_USER},
+    {-1, NULL, LOG_PRINT, LOG_USER},
+    {-1, NULL, LOG_PRINT, LOG_USER},
+    {-1, NULL, LOG_PRINT, LOG_USER},
 };
 
+#ifdef PRIV_XLOG
 //created by daemon_monitor.sh
-#define DAEMON_DEF_LOG_PATH     "/tmp/xlog/"
-
-int xlog_backup(int force)
-{
-    static int backup_done = FALSE;
-    struct tm *tp;
-    time_t t = time(NULL);
-    char cmd_buff[64];
-
-    tp = localtime(&t);
-    if ( (tp->tm_hour == 4) && (backup_done == TRUE) ){
-        backup_done = FALSE;
-        return VOS_OK;
-    }
-
-    if ( ( (tp->tm_hour == 3) && (backup_done == FALSE) )
-        || (force == TRUE)  ) {
-        backup_done = TRUE;
-
-        sprintf(cmd_buff, "tar -czf xlog%d%02d%02d.tar.gz %s/* >/dev/null 2>&1", 
-                tp->tm_year+1900, tp->tm_mon+1, tp->tm_mday, DAEMON_DEF_LOG_PATH);
-        shell_run_cmd(cmd_buff);
-        sprintf(cmd_buff, "rm -rf %s/* >/dev/null 2>&1", DAEMON_DEF_LOG_PATH);
-        shell_run_cmd(cmd_buff);
-    }
-        
-    return VOS_OK;
-}
-
-#define XLOG_BUFF_MAX           512
-
-int xlog_get_fd(int level)
-{
-    int fd;
-    char file_path[64];
-
-#ifdef XLOG_KEEP_OPEN     
-    if (xlog_ctrl[level].fd > 0) {
-        return xlog_ctrl[level].fd;
-    }
+#define DAEMON_DEF_LOG_PATH     "/tmp/xlog"
+#else
+#define DAEMON_DEF_LOG_PATH     "/var/log"
 #endif
-
-    sprintf(file_path, "%s%s", DAEMON_DEF_LOG_PATH, xlog_ctrl[level].file_name);
-    fd = open(file_path, O_CREAT|O_RDWR, 0666);
-    if (fd > 0) {
-        xlog_ctrl[level].fd = fd;
-        lseek(fd, 0, SEEK_END);
-    }
-    
-    return fd;
-}
 
 int xlog_print_file(int level)
 {
@@ -93,7 +50,7 @@ int xlog_print_file(int level)
         return VOS_ERR;
     }
 
-    sprintf(temp_buf, "cp -f %s%s %s", DAEMON_DEF_LOG_PATH, xlog_ctrl[level].file_name, cp_file);
+    sprintf(temp_buf, "cp -f %s/%s %s", DAEMON_DEF_LOG_PATH, xlog_ctrl[level].file_name, cp_file);
     shell_run_cmd(temp_buf);
     
     fp = fopen(cp_file, "r");
@@ -115,7 +72,6 @@ int xlog_print_file(int level)
     return VOS_OK;
 }
 
-
 void fmt_time_str(char *time_str, int max_len)
 {
     struct tm *tp;
@@ -126,6 +82,56 @@ void fmt_time_str(char *time_str, int max_len)
     
     snprintf(time_str, max_len, "[%04d-%02d-%02d %02d:%02d:%02d]", 
             tp->tm_year+1900, tp->tm_mon+1, tp->tm_mday, tp->tm_hour, tp->tm_min, tp->tm_sec);
+}
+
+#ifdef PRIV_XLOG
+
+int xlog_backup(int force)
+{
+    static int backup_done = FALSE;
+    struct tm *tp;
+    time_t t = time(NULL);
+    char cmd_buff[128];
+
+    tp = localtime(&t);
+    if ( (tp->tm_hour == 4) && (backup_done == TRUE) ){
+        backup_done = FALSE;
+        return VOS_OK;
+    }
+
+    if ( ( (tp->tm_hour == 3) && (backup_done == FALSE) )
+        || (force == TRUE)  ) {
+        backup_done = TRUE;
+
+        sprintf(cmd_buff, "tar -czf xlog%d%02d%02d.tar.gz %s/* /var/log/dmesg >/dev/null 2>&1", 
+                tp->tm_year+1900, tp->tm_mon+1, tp->tm_mday, DAEMON_DEF_LOG_PATH);
+        shell_run_cmd(cmd_buff);
+        sprintf(cmd_buff, "rm -rf %s/* >/dev/null 2>&1", DAEMON_DEF_LOG_PATH);
+        shell_run_cmd(cmd_buff);
+    }
+        
+    return VOS_OK;
+}
+
+int xlog_get_fd(int level)
+{
+    int fd;
+    char file_path[64];
+
+#ifdef XLOG_KEEP_OPEN     
+    if (xlog_ctrl[level].fd > 0) {
+        return xlog_ctrl[level].fd;
+    }
+#endif
+
+    sprintf(file_path, "%s/%s", DAEMON_DEF_LOG_PATH, xlog_ctrl[level].file_name);
+    fd = open(file_path, O_CREAT|O_RDWR, 0666);
+    if (fd > 0) {
+        xlog_ctrl[level].fd = fd;
+        lseek(fd, 0, SEEK_END);
+    }
+    
+    return fd;
 }
 
 
@@ -171,11 +177,47 @@ int xlog(int level, const char *format, ...)
         vos_print("%s", buf2);
     }
 
-    //backup everyday
-    xlog_backup(FALSE);
+    return len;    
+}
+
+#else
+
+
+int xlog_backup(int force)
+{
+    vos_print("NOT support while not define PRIV_XLOG \r\n");
+    return VOS_OK;
+}
+
+int xlog(int level, const char *format, ...)
+{
+    va_list args;
+    char buf[XLOG_BUFF_MAX];
+    int len;
+
+    if (level >= XLOG_MAX) {
+        return VOS_ERR;
+    }
+    
+    va_start(args, format);
+    len = vsnprintf(buf, XLOG_BUFF_MAX, format, args);
+    va_end(args);
+
+    if (xlog_ctrl[level].flags & LOG_FILE) {
+        openlog(NULL, LOG_CONS, xlog_ctrl[level].facility);
+        //setlogmask(LOG_UPTO(LOG_NOTICE));
+        syslog(LOG_NOTICE, "%s", buf);
+        closelog();
+    }
+
+    if (xlog_ctrl[level].flags & LOG_PRINT) {
+        vos_print("%s\r\n", buf);
+    }
 
     return len;    
 }
 
 
+
+#endif
 

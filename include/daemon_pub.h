@@ -47,10 +47,6 @@
  *************************************************************************/
 #ifdef BOARD_RRU_G3
 
-//#define DEMO_THREAD_CODE
-
-#define HWMON_MSG_DEMO
-
 #define DRV_CFG_FILE            "configs/drv_cfg_rru.json"
 #define HWMON_CFG_FILE          "configs/hwmon_cfg_rru.json"
 #define DEVM_CFG_FILE           "configs/devm_cfg_rru.json"
@@ -64,7 +60,6 @@
  *************************************************************************/
 #ifdef BOARD_RHUB_G1
 
-//#define DEMO_THREAD_CODE
 
 #define INCLUDE_UBLOX_GNSS
 

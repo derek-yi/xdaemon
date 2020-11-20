@@ -1,0 +1,35 @@
+{
+	"Common Header": {
+		"Common Header Format Version":         { "Data Format": "Binary", "value": [0x01] },
+		"Internal Use Area Starting Offset":    { "Data Format": "Binary", "value": [0x00] },
+		"Chassis Info Area Starting Offset":    { "Data Format": "Binary", "value": [0x00] },
+		"Board Info Area Starting Offset":      { "Data Format": "Binary", "value": [0x01] },
+		"Product Info Area Starting Offset":    { "Data Format": "Binary", "value": [0x00] },
+		"MultiRecord Area Starting Offset":     { "Data Format": "Binary", "value": [0x00] }
+	},
+	"Board Info": {
+		"Board Info Area Format Version":   { "Data Format": "Binary", "value": [0x01] },
+		"Board Info Area Length":           { "Data Format": "Binary", "value": [0x1F] },
+		"Board Info Language Code":         { "Data Format": "Binary", "value": [0x00] },		
+		"Board Manufacturing Date":         { "Data Format": "Binary", "value": [0x00, 0x00, 0x00] },		
+		"Board Manufacturer type":          { "Data Format": "Binary", "value": [0xD0] },		
+		"Board Manufacturer bytes":         { "Data Format": "ASCII",  "value": "FUHUAKE" },		
+		"Board Name type":                  { "Data Format": "Binary", "value": [0xD0] },		
+		"Board Name bytes":                 { "Data Format": "ASCII",  "value": "RF4780B" },
+		"Board Serial Number type":         { "Data Format": "Binary", "value": [0xD4] },
+		"Board Serial Number bytes":        { "Data Format": "ASCII",  "value": "null" },
+		"Board Part Number type":           { "Data Format": "Binary", "value": [0xD4] },
+		"Board Part Number bytes":          { "Data Format": "ASCII",  "value": "95.2202T00" },
+		"Board FRU File ID type":           { "Data Format": "Binary", "value": [0x01] },
+		"Board FRU File ID bytes":          { "Data Format": "Binary", "value": [0x01] },
+		"Custom Board Info No.1 type":      { "Data Format": "Binary", "value": [0x08] },
+		"Custom Board Info No.1 bytes":     { "Data Format": "Binary", "value": [0x00] },
+		"Custom Board Info No.2 type":      { "Data Format": "Binary", "value": [0x18] },
+		"Custom Board Info No.2 bytes":     { "Data Format": "Binary", "value": [0x00] },
+		"Custom Board Info No.3 type":      { "Data Format": "Binary", "value": [0x3F] },
+		"Custom Board Info No.3 bytes":     { "Data Format": "Binary", "value": [0x00] },
+		"Custom Board Info No.4 type":      { "Data Format": "Binary", "value": [0x3F] },
+		"Custom Board Info No.4 bytes":     { "Data Format": "Binary", "value": [0x00] },
+		"End of Fields marker":             { "Data Format": "Binary", "value": [0xC1] }
+	}
+}

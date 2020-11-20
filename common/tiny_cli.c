@@ -2,6 +2,7 @@
 #include "daemon_pub.h"
 
 #include <stdarg.h>
+#include <semaphore.h>
 
 
 #if 0   //move to header file
@@ -38,22 +39,27 @@ int     telnet_fd = -1;
 CMD_NODE  *gst_cmd_list  = NULL;
 uint32     pwd_check_ok = FALSE;
 
+sem_t print_sem; //sem for print_buff
+char print_buff[8192];
+
 int vos_print(const char * format,...)
 {
     va_list args;
-    char buf[CMD_BUFF_MAX];
     int len;
 
+    sem_wait(&print_sem);
+    
     va_start(args, format);
-    len = vsnprintf(buf, CMD_BUFF_MAX, format, args);
+    len = vsnprintf(print_buff, 8192, format, args);
     va_end(args);
 
     if ( cli_telnet_active() ) {
-        write(telnet_fd, buf, len);
+        write(telnet_fd, print_buff, len);
     } else {
-        printf("%s", buf);
+        printf("%s", print_buff);
     }
 
+    sem_post(&print_sem);
     return len;    
 }
 
@@ -347,6 +353,8 @@ int cli_do_help(int argc, char **argv)
 
 void cli_cmd_init(void)
 {
+    sem_init(&print_sem, 0, 1);
+    
     cli_cmd_reg("quit",         "exit app",             &cli_do_exit);
     cli_cmd_reg("help",         "cmd help",             &cli_do_help);
     //cli_cmd_reg("version",      "show version",         &cli_do_show_version);

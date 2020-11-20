@@ -18,5 +18,6 @@ int xlog(int level, const char *fmt, ...);
 
 int xlog_print_file(int level);
 
+int xlog_backup(int force);
 
 #endif

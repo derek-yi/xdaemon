@@ -113,7 +113,7 @@ int check_cpu_temp(void *self, void *cookie)
         node->fault_state = MINOR;
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: cpu occupy normal, current temp %d", cpu_temp);
+            xlog(XLOG_HWMON, "HWMON MSG: cpu temp normal, current temp %d", cpu_temp);
             hwmon_send_msg(NODE_ID_CPU_TEMP, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -350,6 +350,20 @@ int clk_9FGV100X_reg_dump(void *self, void *cookie)
 }
 
 /*************************************************************************
+ * 如果检测的是irq monitor寄存器，获取结果后清除
+ *************************************************************************/
+int ad9544_clear_irq_monitor(uint32 chip_id, uint32 reg_addr)
+{
+    //IRQ monitor registers (Register 0x300B through Register 0x3019)
+    //IRQ clear registers (Register 0x2006 through Register 0x2014)
+    if (reg_addr >= 0x300B && reg_addr <= 0x3019) {
+        reg_addr = reg_addr - 0x300B + 0x2006;
+        clk_ad9544_reg_write(chip_id, reg_addr, 0xFF);
+    }
+    return VOS_OK;
+}
+
+/*************************************************************************
  * 时钟芯片 AD9544 寄存器check
  *************************************************************************/
 int ad9544_reg_check(void *self, void *cookie)
@@ -371,6 +385,7 @@ int ad9544_reg_check(void *self, void *cookie)
                 hwmon_send_msg(NODE_ID_AD9544_REG, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
+            ad9544_clear_irq_monitor(0, reg_addr);
         }
     } else {
         if (node->fault_state != NO_FAULT) {
