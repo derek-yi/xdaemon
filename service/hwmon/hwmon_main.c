@@ -54,7 +54,6 @@ int hwmon_load_script(char *file_name)
 
         for (int j = 0; j < ent_size; ++j) {
             cJSON* tmp_ent = cJSON_GetArrayItem(tmp_node, j);
-            CHK_PRIV_CFG_S *priv_cfg;
 
             if ( !strcmp(tmp_ent->string, "function") ) {
                 chk_node.func_name = strdup(tmp_ent->valuestring);
@@ -72,21 +71,6 @@ int hwmon_load_script(char *file_name)
                     cJSON* tmp_param = cJSON_GetArrayItem(tmp_ent, k);
                     chk_node.param[k] = tmp_param->valueint;
                 }
-            }
-            else if ( !memcmp(tmp_ent->string, "//", 2) ) {
-                //drop the comment 
-            } 
-            else {
-                priv_cfg = (CHK_PRIV_CFG_S *)malloc(sizeof(CHK_PRIV_CFG_S));
-                if (priv_cfg == NULL) {
-                    xlog(XLOG_ERROR, "malloc failed");
-                    goto EXIT_PROC;
-                }
-
-                priv_cfg->cfg_str = strdup(tmp_ent->string);
-                priv_cfg->cfg_val = strdup(tmp_ent->valuestring);
-                priv_cfg->next = chk_node.priv_cfg;
-                chk_node.priv_cfg = priv_cfg;
             }
         }
 
@@ -149,30 +133,6 @@ int hwmon_config(const char *node_desc, chk_func func, void *cookie)
 }
 
 /*************************************************************************
- * 获取检测点的配置数据
- * chk_node     - 
- * cfg_str      - 
- * return       - 
- *************************************************************************/
-char *hwmon_get_node_cfg(CHK_NODE_CFG_S *chk_node, char *cfg_str)
-{
-    CHK_PRIV_CFG_S *p;
-
-    if (chk_node == NULL) return NULL;
-    if (cfg_str == NULL) return NULL;
-
-    p = chk_node->priv_cfg;
-    while (p != NULL) {
-        if( !strcmp(cfg_str, p->cfg_str) ) {
-            return p->cfg_val;
-        }
-        p = p->next;
-    }
-    
-    return NULL;
-}
-
-/*************************************************************************
  * 设置检测点的配置数据
  * chk_node     - 
  * cfg_str      - 
@@ -180,7 +140,6 @@ char *hwmon_get_node_cfg(CHK_NODE_CFG_S *chk_node, char *cfg_str)
  *************************************************************************/
 int hwmon_set_node_cfg(const char *node_desc, char *cfg_str, char *cfg_val)
 {
-    CHK_PRIV_CFG_S *p;
     int i, pi;
 
     if (node_desc == NULL) return VOS_ERR;
@@ -219,17 +178,6 @@ int hwmon_set_node_cfg(const char *node_desc, char *cfg_str, char *cfg_val)
         return VOS_OK;
     }
 
-    //set CHK_NODE_CFG_S.priv_cfg
-    p = hwmon_list[i].base_cfg.priv_cfg;
-    while (p != NULL) {
-        if( !strcmp(cfg_str, p->cfg_str) ) {
-            if (p->cfg_val) free(p->cfg_val);
-            p->cfg_val = strdup(cfg_val);
-            return VOS_OK;
-        }
-        p = p->next;
-    }
-    
     return VOS_ERR;
 }
 
@@ -273,61 +221,11 @@ int hwmon_set_interval(const char *node_desc, int interval)
     return VOS_ERR;
 }
 
-/*************************************************************************
- * 定时器回调，检测各检测点是否超时
- *************************************************************************/
-void hwmon_timer_callback(union sigval param)
+int hwmon_policy_update()
 {
-    if (check_task_enable != TRUE) {
-        return ;
-    }
+    hwmon_set_node_cfg("power.check0", "param1", "19088000"); //todo
     
-    // 定时器回调函数应该简单处理
-    for (int i = 0; i < HWMON_MAX_NODE; i++) {
-        if (hwmon_list[i].enable) {
-            if (hwmon_list[i].interval_cmp++ >= hwmon_list[i].base_cfg.interval) {
-                hwmon_list[i].interval_cmp = 0;
-                hwmon_list[i].check_status = CHK_STATUS_READY;
-            }
-        }
-    }
-}
-
-/*************************************************************************
- * 检测主函数，轮询检测所有已超时的检测点
- *************************************************************************/
-void* hwmon_check_task(void *param)  
-{
-    struct timeval t_start, t_end;
-    int t_used = 0;
-
-    while(1) {
-        if (check_task_enable != TRUE) {
-            vos_msleep(100);
-            continue;
-        }
-
-        gettimeofday(&t_start, NULL);
-        for (int i = 0; i < HWMON_MAX_NODE; i++) {
-            if ( (hwmon_list[i].enable)
-                && (hwmon_list[i].check_status == CHK_STATUS_READY) 
-                && (hwmon_list[i].chk_fun) ) {
-                //hwmon_list[i].check_status = CHK_STATUS_BUSY;
-                hwmon_list[i].chk_fun(&hwmon_list[i], hwmon_list[i].cookie);
-                hwmon_list[i].check_times++;
-                hwmon_list[i].check_status = CHK_STATUS_IDLE;
-            }
-        }
-        gettimeofday(&t_end, NULL);
-        
-        t_used = (t_end.tv_sec - t_start.tv_sec)*1000000+(t_end.tv_usec - t_start.tv_usec);//us
-        t_used = t_used/1000; //ms
-        if (peak_check_time < t_used) peak_check_time = t_used;
-        
-        vos_msleep(500);
-    }
-    
-    return NULL;
+    return VOS_OK;
 }
 
 int hwmon_enable_task(int enable)
@@ -440,12 +338,6 @@ int cli_show_hwmon_list(int argc, char **argv)
                       hwmon_list[i].base_cfg.interval, hwmon_list[i].base_cfg.repeat_max, 
                       hwmon_list[i].base_cfg.param[0], hwmon_list[i].base_cfg.param[1],
                       hwmon_list[i].base_cfg.param[2], hwmon_list[i].base_cfg.param[3]);
-
-            if (hwmon_list[i].base_cfg.priv_cfg != NULL) {
-                vos_print(" priv_cfg(%s=%s)", 
-                          hwmon_list[i].base_cfg.priv_cfg->cfg_str, 
-                          hwmon_list[i].base_cfg.priv_cfg->cfg_val);
-            }
 
             vos_print("\r\n  => enable=%d check_times=%d fault_state=%d \r\n", 
                     hwmon_list[i].enable, 
@@ -569,20 +461,81 @@ int echo_msg_proc(DEVM_MSG_S *rx_msg, DEVM_MSG_S *tx_msg)
 
 #endif
 
+#if T_DESC("hwmon_main", 1)
 
 pthread_t hwmon_chk_tid;
 
 timer_t hwmon_chk_timer;
 
+
+/*************************************************************************
+ * 定时器回调，检测各检测点是否超时
+ *************************************************************************/
+void hwmon_timer_callback(union sigval param)
+{
+    if (check_task_enable != TRUE) {
+        return ;
+    }
+    
+    // 定时器回调函数应该简单处理
+    for (int i = 0; i < HWMON_MAX_NODE; i++) {
+        if (hwmon_list[i].enable) {
+            if (hwmon_list[i].interval_cmp++ >= hwmon_list[i].base_cfg.interval) {
+                hwmon_list[i].interval_cmp = 0;
+                hwmon_list[i].check_status = CHK_STATUS_READY;
+            }
+        }
+    }
+}
+
+/*************************************************************************
+ * 检测主函数，轮询检测所有已超时的检测点
+ *************************************************************************/
+void* hwmon_check_task(void *param)  
+{
+    struct timeval t_start, t_end;
+    int t_used = 0;
+
+    while(1) {
+        if (check_task_enable != TRUE) {
+            vos_msleep(100);
+            continue;
+        }
+        gettimeofday(&t_start, NULL);
+        
+        for (int i = 0; i < HWMON_MAX_NODE; i++) {
+            if ( (hwmon_list[i].enable)
+                && (hwmon_list[i].check_status == CHK_STATUS_READY) 
+                && (hwmon_list[i].chk_fun) ) {
+                //hwmon_list[i].check_status = CHK_STATUS_BUSY;
+                hwmon_list[i].chk_fun(&hwmon_list[i], hwmon_list[i].cookie);
+                hwmon_list[i].check_times++;
+                hwmon_list[i].check_status = CHK_STATUS_IDLE;
+            }
+        }
+
+        hwmon_policy_update();
+        
+        gettimeofday(&t_end, NULL);
+        t_used = (t_end.tv_sec - t_start.tv_sec)*1000000+(t_end.tv_usec - t_start.tv_usec);//us
+        t_used = t_used/1000; //ms
+        if (peak_check_time < t_used) peak_check_time = t_used;
+        vos_msleep(500);
+    }
+    
+    return NULL;
+}
+
 /*************************************************************************
  * 检测模块初始化函数
  *************************************************************************/
-int hwmon_init(char *file_name)
+int hwmon_init(char *cfg_file)
 {
     int ret;
     
     //load cfg script
-    hwmon_load_script(file_name);
+    xlog(XLOG_INFO, "hwmon_init: %s", cfg_file);
+    hwmon_load_script(cfg_file);
     
     //override check node
     hwmon_config_override();
@@ -620,5 +573,5 @@ int hwmon_exit()
     return 0;
 }
 
-
+#endif
 

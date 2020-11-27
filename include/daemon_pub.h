@@ -5,20 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#include <sys/syscall.h>
-#include <sys/types.h>
-#include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>   //timer_t
 #include <signal.h>
-#include <ctype.h>
 #include <sys/time.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/file.h>
 
 #include "vos.h"
 #include "xlog.h"
@@ -28,9 +20,36 @@
 
 //todo: move to makefile
 #define BOARD_RRU_G3
+//#define BOARD_RHUB_G1
 
 //todo: move to makefile
 //define DAEMON_RELEASE
+
+typedef struct _DYN_CFG{
+    struct _DYN_CFG *next;
+    char    *cfg_str;
+    char    *cfg_val;
+}DYN_CFG_S;
+
+typedef struct _SYS_CONF_PARAM
+{
+//"fix.config"
+    char    *drv_conf;
+    char    *hwmon_conf;
+    char    *devm_conf;
+    char    *upcfg_conf;
+    int     MAX_FRUID;
+    int     MAX_RF_CHIP;
+    char    *uds_file;
+    char    *xlog_path;
+    char    *customer_name;
+    int     customer_id;
+
+//"dyn.config"
+    DYN_CFG_S *dyn_cfg;
+}SYS_CONF_PARAM;
+
+extern SYS_CONF_PARAM sys_conf;
 
 /*************************************************************************
  * global config
@@ -38,18 +57,13 @@
 #define DAEMON_VERSION          0x100
 
 //#define INCLUDE_CONSOLE
-
 #define INCLUDE_TELNETD
-#define TELNETD_LISTEN_PORT     2300
 
 /*************************************************************************
  * board config: rru g3
  *************************************************************************/
 #ifdef BOARD_RRU_G3
 
-#define DRV_CFG_FILE            "configs/drv_cfg_rru.json"
-#define HWMON_CFG_FILE          "configs/hwmon_cfg_rru.json"
-#define DEVM_CFG_FILE           "configs/devm_cfg_rru.json"
 
 #define INCLUDE_ADRV9009
 

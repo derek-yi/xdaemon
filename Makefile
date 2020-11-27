@@ -19,7 +19,8 @@ TOP_PATH = $(shell pwd)
 SRC_PATH = common driver service
 
 CFLAGS = -Wall -c -std=gnu99 -g 
-LINK_FLAGS += -lrt -lpthread
+#CFLAGS += -rdynamic 
+LINK_FLAGS += -lrt -lpthread -lzlog
 
 ##########################################################
 # modules

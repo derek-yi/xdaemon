@@ -119,6 +119,7 @@ int cli_ad9528_write(int argc, char **argv)
     return 0;
 }
 
+#ifdef INCLUDE_ADRV9009
 int cli_ad9009_read(int argc, char **argv)
 {
     uint32 chip_id;
@@ -143,6 +144,7 @@ int cli_ad9009_read(int argc, char **argv)
     
     return 0;
 }
+#endif
 
 int cli_devmem_read(int argc, char **argv)
 {
@@ -254,6 +256,7 @@ int cli_drv_unit_test(int argc, char **argv)
     ret = drv_ad9528_pll_locked(0);
     UT_CHECK_VALUE(ret, VOS_OK);
 
+#ifdef INCLUDE_ADRV9009
     value = adrv9009_reg_read(0, 0x200);
     UT_CHECK_VALUE(value, 0x14);
 
@@ -262,6 +265,7 @@ int cli_drv_unit_test(int argc, char **argv)
 
     ret = adrv9009_pll_locked(1);
     UT_CHECK_VALUE(ret, VOS_OK);
+#endif    
 
 #ifdef INCLUDE_UBLOX_GNSS
     ret = drv_gnss_is_locked();
@@ -332,12 +336,6 @@ int cli_change_dir(int argc, char **argv)
     return CMD_OK;
 }
 
-int cli_backup_xlog(int argc, char **argv)
-{
-    xlog_backup(TRUE);
-    return CMD_OK;
-}
-
 void drv_cmd_reg()
 {
     cli_cmd_reg("cpu_temp",     "show cpu temp",        &cli_show_cpu_temp);
@@ -351,8 +349,9 @@ void drv_cmd_reg()
     cli_cmd_reg("wr_ad9544",    "write ad9544 reg",     &cli_ad9544_write);
     cli_cmd_reg("rd_ad9528",    "read ad9528 reg",      &cli_ad9528_read);
     cli_cmd_reg("wr_ad9528",    "write ad9528 reg",     &cli_ad9528_write);
+#ifdef INCLUDE_ADRV9009    
     cli_cmd_reg("rd_ad9009",    "read ad9009 reg",      &cli_ad9009_read);
-    
+#endif    
     cli_cmd_reg("rd_reg",       "read FPGA reg",        &cli_devmem_read);
     cli_cmd_reg("wr_reg",       "write FPGA reg",       &cli_devmem_write);
     cli_cmd_reg("rd_ram",       "read FPGA RAM",        &cli_devmem_read); //todo
@@ -360,12 +359,12 @@ void drv_cmd_reg()
 
 #ifndef DAEMON_RELEASE    
     cli_cmd_reg("ut_drv",       "drv api unittest",     &cli_drv_unit_test);
-    cli_cmd_reg("xlog_bk",      "backup xlog file",     &cli_backup_xlog);
 #endif
 }
 #endif
 
-#if T_DESC("drv_init", 1)
+#if T_DESC("script", 1)
+
 
 #define MAX_P_NUM           8
 #define OPTYPE_READ         1
@@ -407,7 +406,7 @@ int drv_ad9544_script_init(cJSON* sub_tree)
             }
             
             if (op_type > 0) {
-                xlog(XLOG_DEVM, "AD9544: op_type %d, plist 0x%x 0x%x 0x%x 0x%x", op_type, p[0], p[1], p[2], p[3]);
+                xlog(XLOG_WARN, "AD9544: op_type %d, plist 0x%x 0x%x 0x%x", op_type, p[0], p[1], p[2]);
             }
             
             if (op_type == OPTYPE_MSLEEP) {
@@ -468,7 +467,7 @@ int drv_fpga_script_init(cJSON* sub_tree)
             }
             
             if (op_type > 0) {
-                xlog(XLOG_DEVM, "FPGA: op_type %d, plist 0x%x 0x%x 0x%x 0x%x", op_type, p[0], p[1], p[2], p[3]);
+                xlog(XLOG_WARN, "FPGA: op_type %d, plist 0x%x 0x%x 0x%x", op_type, p[0], p[1], p[2]);
             }
 
             if (op_type == OPTYPE_MSLEEP) {
@@ -477,7 +476,7 @@ int drv_fpga_script_init(cJSON* sub_tree)
                 //p[0]-reg_addr, p[1]-value, p[2]-mask
                 ret = devmem_read(p[0], AT_WORD);
                 if ( (ret&p[2]) != (p[1]&p[2]) ) {
-                    xlog(XLOG_ERROR, "fpga read 0x%x fail, ret 0x%x, exp 0x%x", p[0], ret, p[2]);
+                    xlog(XLOG_ERROR, "fpga read 0x%x fail, ret 0x%x, exp 0x%x", p[0], ret, p[1]);
                     return VOS_ERR;
                 }
             } else if (op_type == OPTYPE_WRITE) {
@@ -513,6 +512,7 @@ int drv_load_script(char *file_name)
         return VOS_ERR;
 	}
 
+    xlog(XLOG_WARN, "load drv script %s ...", file_name);
 	sub_tree = cJSON_GetObjectItem(root_tree, "9544.init");
 	if (sub_tree != NULL) {
 		drv_ad9544_script_init(sub_tree);
@@ -529,11 +529,74 @@ int drv_load_script(char *file_name)
     return VOS_OK;
 }
 
+#endif
+
+#if T_DESC("drv_main", 1)
+
+
+int drv_task_enable = TRUE;
+int drv_peak_time = 0;
+
+void* drv_main_task(void *param)  
+{
+    struct timeval t_start, t_end;
+    uint32 delay_ms;
+
+    while(1) {
+        if (drv_task_enable != TRUE) {
+            vos_msleep(100);
+            continue;
+        }
+        gettimeofday(&t_start, NULL);
+
+        //todo
+
+        gettimeofday(&t_end, NULL);
+        delay_ms = (t_end.tv_sec - t_start.tv_sec)*1000000+(t_end.tv_usec - t_start.tv_usec);//us
+        delay_ms = delay_ms/1000; //ms
+        if (drv_peak_time < delay_ms) drv_peak_time = delay_ms;
+        vos_msleep(500);
+    }
+    
+    return NULL;
+}
+
+void drv_timer_callback(union sigval param)
+{
+    static uint32 loop_cnt = 0;
+    
+    if (drv_task_enable != TRUE) {
+        return ;
+    }
+    
+    // 定时器回调函数应该简单处理
+    //if (loop_cnt%3 == 0) cpri_state_monitor();
+    
+    loop_cnt++;
+}
+
+
 int drv_module_init(char *cfg_file)
 {
+    int ret;
+    pthread_t threadid;
+    timer_t timer_id;
+
+    xlog(XLOG_INFO, "drv_module_init: %s", cfg_file);
     drv_load_script(cfg_file);
-    
     drv_cmd_reg();
+
+    ret = pthread_create(&threadid, NULL, drv_main_task, NULL);  
+    if (ret != 0)  {  
+        xlog(XLOG_ERROR, "Error at %s:%d, pthread_create failed(%s)", __FILE__, __LINE__, strerror(errno));
+        return -1;  
+    } 
+
+    ret = vos_create_timer(&timer_id, 1, drv_timer_callback, NULL);
+    if (ret != 0)  {  
+        xlog(XLOG_ERROR, "Error at %s:%d, vos_create_timer failed(%s)", __FILE__, __LINE__, strerror(errno));
+        return -1;  
+    } 
 
     return VOS_OK;
 }

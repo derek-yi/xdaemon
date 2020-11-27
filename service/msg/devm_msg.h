@@ -4,19 +4,11 @@
 
 #ifdef APP_TEST
 
-#include <stdio.h>
-#include <string.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-
 #define VOS_OK      0
 #define VOS_ERR     (-1)
 
 #define xlog(x, fmt, args...)   printf(fmt, ##args)
+#define vos_msleep(x)           usleep((x)*1000)
 
 #endif
 

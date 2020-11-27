@@ -1,0 +1,49 @@
+{
+	"9544.init": {
+		"9544.step0": [
+			{ "//note": "set IRQ mask registers (Register 0x010C through Register 0x011A)" },
+			{ "type": "write", "param":[0, 0x10c, 0xff] },
+			{ "type": "write", "param":[0, 0x10d, 0xff] },
+			{ "type": "write", "param":[0, 0x10e, 0xff] },
+			{ "type": "write", "param":[0, 0x10f, 0xff] },
+			{ "type": "write", "param":[0, 0x111, 0xff] },
+			{ "type": "write", "param":[0, 0x112, 0xff] },
+			{ "type": "write", "param":[0, 0x113, 0xff] },
+			{ "type": "write", "param":[0, 0x114, 0xff] },
+			{ "type": "write", "param":[0, 0x115, 0xff] },
+			{ "type": "write", "param":[0, 0x116, 0xff] },
+			{ "type": "write", "param":[0, 0x117, 0xff] },
+			{ "type": "write", "param":[0, 0x118, 0xff] },
+			{ "type": "write", "param":[0, 0x119, 0xff] },
+			{ "type": "write", "param":[0, 0x11a, 0xff] },
+			{ "type": "write", "param":[0, 0x00f, 0x01] },
+			{ "type": "sleep", "param":[10] }
+		],
+		"9544.step1": [
+			{ "//note": "set IRQ clear registers (Register 0x2006 through Register 0x2014)" },
+			{ "type": "write", "param":[0, 0x2006, 0xff] },
+			{ "type": "write", "param":[0, 0x2007, 0xff] },
+			{ "type": "write", "param":[0, 0x2008, 0xff] },
+			{ "type": "write", "param":[0, 0x2009, 0xff] },
+			{ "type": "write", "param":[0, 0x200b, 0xff] },
+			{ "type": "write", "param":[0, 0x200c, 0xff] },
+			{ "type": "write", "param":[0, 0x200d, 0xff] },
+			{ "type": "write", "param":[0, 0x200e, 0xff] },
+			{ "type": "write", "param":[0, 0x200f, 0xff] },
+			{ "type": "write", "param":[0, 0x2010, 0xff] },
+			{ "type": "write", "param":[0, 0x2011, 0xff] },
+			{ "type": "write", "param":[0, 0x2012, 0xff] },
+			{ "type": "write", "param":[0, 0x2013, 0xff] },
+			{ "type": "write", "param":[0, 0x2014, 0xff] },
+			{ "type": "write", "param":[0, 0x000f, 0x01] },
+			{ "type": "sleep", "param":[10] }
+		]
+	},
+	"fpga.init": {
+		"fpga.step0": [
+			{ "//note": "check key register" },
+			{ "type": "read",  "param":[0x43c30000, 0x0, 0x01000000] },
+			{ "type": "sleep", "param":[10] }
+		]
+    }	
+}

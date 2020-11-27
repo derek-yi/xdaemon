@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <linux/i2c-dev.h>
+#include <sys/time.h>
 
 #include "drv_i2c.h"
 

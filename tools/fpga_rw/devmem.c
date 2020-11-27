@@ -1,4 +1,3 @@
-
 //from https://github.com/VCTLabs/devmem2/blob/master/devmem2.c
 
 #include <stdio.h>
@@ -92,4 +91,3 @@ int main(int argc, char **argv) {
     close(fd);
     return 0;
 }
-

@@ -39,6 +39,7 @@ int drv_get_cpri_links(int *link_cnt);
 
 int drv_board_type();
 
+int cpri_state_monitor();
 
 #endif
 

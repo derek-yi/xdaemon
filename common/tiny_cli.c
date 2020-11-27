@@ -1,23 +1,38 @@
-
-#include "daemon_pub.h"
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <semaphore.h>
+#include <netinet/in.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <arpa/inet.h> 
+
+#ifndef APP_TEST
+#include "daemon_pub.h"
+#endif
+#include "tiny_cli.h"
 
 
-#if 0   //move to header file
+#ifdef APP_TEST
 
-#define CMD_OK                  0x00
-#define CMD_ERR                 0x01
-#define CMD_ERR_PARAM           0x02
-#define CMD_ERR_NOT_MATCH       0x03
-#define CMD_ERR_AMBIGUOUS       0x04
+#define INCLUDE_CONSOLE
+#define INCLUDE_TELNETD
 
-typedef int (* CMD_FUNC)(int argc, char **argv);
+typedef unsigned int uint32;
 
-void cli_main_task(void);
+#define TRUE        1
+#define FALSE       0
 
 #endif
+
 
 typedef struct CMD_NODE
 {
@@ -42,11 +57,21 @@ uint32     pwd_check_ok = FALSE;
 sem_t print_sem; //sem for print_buff
 char print_buff[8192];
 
+int cli_telnet_active()
+{
+    return telnet_fd >= 0;
+}
+
 int vos_print(const char * format,...)
 {
     va_list args;
     int len;
+    static int init_done = FALSE;
 
+    if (!init_done) {
+        if (sem_init(&print_sem, 0, 1) < 0) return 0;
+        init_done = TRUE;
+    }
     sem_wait(&print_sem);
     
     va_start(args, format);
@@ -148,18 +173,18 @@ int cli_run_shell(char *cmd_buf)
     fp = fopen(OUTPUT_TEMP_FILE, "r");
     if (fp == NULL) {
         vos_print("cmd failed \r\n");
-        return VOS_ERR;
+        return CMD_ERR;
     }
 
     memset(temp_buf, 0, sizeof(temp_buf));
-    while (fgets(temp_buf, 510, fp) != NULL) {  
-        vos_print("%s", temp_buf);
+    while (fgets(temp_buf, 500, fp) != NULL) {  
+        vos_print("%s\r", temp_buf); //linux-\n, windows-\n\r
         memset(temp_buf, 0, sizeof(temp_buf));
     }
 
     fclose(fp);
     unlink(OUTPUT_TEMP_FILE);    
-    return 0;
+    return CMD_OK;
 }
 #endif
 
@@ -278,7 +303,7 @@ int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func)
                 q->pNext = new_node;
                 new_node->pNext = p;
             }
-            return VOS_OK;
+            return CMD_OK;
         }
         q = p;
         p = p->pNext;
@@ -353,8 +378,6 @@ int cli_do_help(int argc, char **argv)
 
 void cli_cmd_init(void)
 {
-    sem_init(&print_sem, 0, 1);
-    
     cli_cmd_reg("quit",         "exit app",             &cli_do_exit);
     cli_cmd_reg("help",         "cmd help",             &cli_do_help);
     //cli_cmd_reg("version",      "show version",         &cli_do_show_version);
@@ -403,7 +426,7 @@ void cli_main_task(void)
     while(1)    
     {
         if (cli_telnet_active()) {
-            vos_msleep(100);
+            sleep(1);
             continue;
         }
         
@@ -428,10 +451,7 @@ void cli_main_task(void)
     }
 }
 
-int cli_telnet_active()
-{
-    return telnet_fd >= 0;
-}
+#ifdef INCLUDE_TELNETD
 
 void cli_telnet_task(int fd)
 {
@@ -487,4 +507,88 @@ TASK_EXIT:
     cli_cmd_ptr = 0;
     telnet_fd = -1;
 }
+
+void* telnet_listen_task(void *param)  
+{
+	struct sockaddr_in sa;
+	int master_fd;
+	int on = 1;
+
+	master_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (master_fd < 0) {
+		perror("socket");
+		return NULL;
+	}
+	(void)setsockopt(master_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+	/* Set it to listen to specified port */
+	memset((void *)&sa, 0, sizeof(sa));
+	sa.sin_family = AF_INET;
+	sa.sin_port = htons(TELNETD_LISTEN_PORT);
+
+	/* Set it to listen on the specified interface */
+	sa.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (bind(master_fd, (struct sockaddr *) &sa, sizeof(sa)) < 0) {
+		perror("bind");
+		return NULL;
+	}
+
+	if (listen(master_fd, 1) < 0) {
+		perror("listen");
+		return NULL;
+	}
+
+    //if (daemon(0, 1) < 0) perror("daemon");
+    while (1) {
+        int fd;
+        socklen_t salen;
+
+        salen = sizeof(sa); 
+        if ((fd = accept(master_fd, (struct sockaddr *)&sa, &salen)) < 0) {
+            perror("accept");
+            continue;
+        } else {
+            printf("Server: connect from host %s, port %d.\r\n", inet_ntoa (sa.sin_addr), ntohs (sa.sin_port));        
+            cli_telnet_task(fd);
+            close(fd);
+        }
+    }
+
+    return NULL;
+}
+
+int telnet_task_init(void)
+{
+    int ret;
+    pthread_t unused_tid;
+
+    ret = pthread_create(&unused_tid, NULL, telnet_listen_task, NULL);  
+    if (ret != 0)  {  
+        printf("Error at %s:%d, pthread_create failed(%s)\r\n", __FILE__, __LINE__, strerror(errno));
+        return CMD_ERR;  
+    } 
+    return CMD_OK;
+}
+
+#endif
+
+#ifdef APP_TEST
+
+int main()
+{
+    cli_cmd_init();
+
+#ifdef INCLUDE_TELNETD
+    telnet_task_init();
+#endif    
+    
+#ifdef INCLUDE_CONSOLE
+    cli_main_task();
+#else   
+    while(1) sleep(1);
+#endif    
+    
+}
+
+#endif
 

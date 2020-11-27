@@ -150,5 +150,6 @@ typedef struct
 }FRU_PRODUCT_INFO;
 
 
+int devm_fru_get_uuid(char *uuid_str, int max);
 
 #endif

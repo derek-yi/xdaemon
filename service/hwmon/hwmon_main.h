@@ -11,11 +11,7 @@
 
 typedef int (*chk_func)(void *self, void *cookie);
 
-typedef struct _CHK_PRIV_CFG{
-    struct _CHK_PRIV_CFG *next;
-    char    *cfg_str;
-    char    *cfg_val;
-}CHK_PRIV_CFG_S;
+
 
 
 typedef struct {
@@ -24,7 +20,6 @@ typedef struct {
     int     interval;
     int     repeat_max;
     int     param[CHK_P_NUM];
-    CHK_PRIV_CFG_S *priv_cfg;
 }CHK_NODE_CFG_S;
 
 

@@ -1,6 +1,7 @@
 
 
 #include "daemon_pub.h"
+#include <sys/mman.h>
 
 #include "drv_cpu.h"
 
@@ -146,6 +147,7 @@ int drv_get_cpu_temp(int *temp)
     if (temp == NULL) return VOS_ERR;
     
     cpu_temp = devmem_read(0x43ca0200, 4);
+    cpu_temp = devmem_read(0x43ca0200, 4); //repeat
     float_tmp = (float)(cpu_temp >> 4);
     float_tmp = (float_tmp*503.975/4096 - 273.15);
     *temp = (int)float_tmp;

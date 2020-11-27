@@ -27,14 +27,14 @@ int check_cpu_occupy(void *self, void *cookie)
     if ( cpu_usage > top_limit ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state == NO_FAULT) {
-                xlog(XLOG_HWMON, "HWMON MSG: cpu occupy warning, cpu usage %d", cpu_usage);
+                xlog(XLOG_HWMON, "cpu occupy warning, cpu usage %d", cpu_usage);
                 hwmon_send_msg(NODE_ID_CPU_OCCUPY, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: cpu occupy normal, cpu usage %d", cpu_usage);
+            xlog(XLOG_HWMON, "cpu occupy normal, cpu usage %d", cpu_usage);
             hwmon_send_msg(NODE_ID_CPU_OCCUPY, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -62,14 +62,14 @@ int check_mem_occupy(void *self, void *cookie)
     if ( mem_usage > top_limit ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state == NO_FAULT) {
-                xlog(XLOG_HWMON, "HWMON MSG: mem occupy warning, mem usage %d", mem_usage);
+                xlog(XLOG_HWMON, "mem occupy warning, mem usage %d", mem_usage);
                 hwmon_send_msg(NODE_ID_MEM_OCCUPY, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: mem occupy normal, mem usage %d", mem_usage);
+            xlog(XLOG_HWMON, "mem occupy normal, mem usage %d", mem_usage);
             hwmon_send_msg(NODE_ID_MEM_OCCUPY, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_cnt = 0;
@@ -98,22 +98,23 @@ int check_cpu_temp(void *self, void *cookie)
         xlog(XLOG_ERROR, "drv_get_cpu_usage failed");
         return VOS_ERR;
     }
-    
+
+    xlog(XLOG_INFO, "cpu temp: value is %d", cpu_temp);
     if ( cpu_temp > temp_limit2 ) {
         if (node->fault_state != CRITICAL) {
-            xlog(XLOG_HWMON, "HWMON MSG: cpu temp warning, current temp %d", cpu_temp);
+            xlog(XLOG_HWMON, "cpu temp warning, current temp %d", cpu_temp);
             hwmon_send_msg(NODE_ID_CPU_TEMP, node->base_cfg.node_desc, CRITICAL);
         }
         node->fault_state = CRITICAL;
     } else if ( cpu_temp > temp_limit1 ) {
         if (node->fault_state != MINOR) {
-            xlog(XLOG_HWMON, "HWMON MSG: cpu temp warning, current temp %d", cpu_temp);
+            xlog(XLOG_HWMON, "cpu temp warning, current temp %d", cpu_temp);
             hwmon_send_msg(NODE_ID_CPU_TEMP, node->base_cfg.node_desc, MINOR);
         }
         node->fault_state = MINOR;
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: cpu temp normal, current temp %d", cpu_temp);
+            xlog(XLOG_HWMON, "cpu temp normal, current temp %d", cpu_temp);
             hwmon_send_msg(NODE_ID_CPU_TEMP, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -146,19 +147,19 @@ int check_board_temp(void *self, void *cookie)
 	
     if ( board_temp > temp_limit2 ) {
         if (node->fault_state != CRITICAL) {
-            xlog(XLOG_HWMON, "HWMON MSG: board temp warning, current temp %d", board_temp);
+            xlog(XLOG_HWMON, "board temp warning, current temp %d", board_temp);
             hwmon_send_msg(NODE_ID_BOARD_TEMP, node->base_cfg.node_desc, CRITICAL);
         }
         node->fault_state = CRITICAL;
     } else if ( board_temp > temp_limit1 ) {
         if (node->fault_state != MINOR) {
-            xlog(XLOG_HWMON, "HWMON MSG: board temp warning, current temp %d", board_temp);
+            xlog(XLOG_HWMON, "board temp warning, current temp %d", board_temp);
             hwmon_send_msg(NODE_ID_BOARD_TEMP, node->base_cfg.node_desc, MINOR);
         }
         node->fault_state = MINOR;
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: board temp normal, current temp %d", board_temp);
+            xlog(XLOG_HWMON, "board temp normal, current temp %d", board_temp);
             hwmon_send_msg(NODE_ID_BOARD_TEMP, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -184,17 +185,18 @@ int ina2xx_reg_check(void *self, void *cookie)
         return VOS_ERR;
     }
 
+    xlog(XLOG_INFO, "power sensor: power[%d] is %d", chip_id, power_value);
     if ( power_value < power_limit ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: power sensor abnormal, value is %d", power_value);
+                xlog(XLOG_HWMON, "power sensor abnormal, value is %d", power_value);
                 hwmon_send_msg(NODE_ID_POWER_CHECK, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: power sensor normal, value is %d", power_value);
+            xlog(XLOG_HWMON, "power sensor normal, value is %d", power_value);
             hwmon_send_msg(NODE_ID_POWER_CHECK, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -224,14 +226,14 @@ int fan_speed_check(void *self, void *cookie)
     if ( speed_value < speed_limit ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: fan %d speed abnormal, value is %d", fan_id, speed_value);
+                xlog(XLOG_HWMON, "fan %d speed abnormal, value is %d", fan_id, speed_value);
                 hwmon_send_msg(NODE_ID_FAN_SPEED, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: fan %d speed normal, value is %d", fan_id, speed_value);
+            xlog(XLOG_HWMON, "fan %d speed normal, value is %d", fan_id, speed_value);
             hwmon_send_msg(NODE_ID_FAN_SPEED, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -259,14 +261,14 @@ int fpga_reg_check(void *self, void *cookie)
         read_value  = devmem_read(reg_addr, AT_WORD); //try again
         if ( (read_value & bit_mask) != (exp_value & bit_mask ) ) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: FPGA reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
+                xlog(XLOG_HWMON, "FPGA reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
                 hwmon_send_msg(NODE_ID_FPGA_REG, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: FPGA reg check pass, address=0x%08x", reg_addr);
+            xlog(XLOG_HWMON, "FPGA reg check pass, address=0x%08x", reg_addr);
             hwmon_send_msg(NODE_ID_FPGA_REG, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -313,14 +315,14 @@ int clk_9FGV100X_reg_check(void *self, void *cookie)
         read_value  = clk_9FGV100X_reg_read(0, reg_addr); //try again
         if ( (read_value & bit_mask) != (exp_value & bit_mask ) ) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: 9FGV100X reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
+                xlog(XLOG_HWMON, "9FGV100X reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
                 hwmon_send_msg(NODE_ID_9FGV100_REG, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: 9FGV100X reg check pass, address=0x%08x", reg_addr);
+            xlog(XLOG_HWMON, "9FGV100X reg check pass, address=0x%08x", reg_addr);
             hwmon_send_msg(NODE_ID_9FGV100_REG, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -381,7 +383,7 @@ int ad9544_reg_check(void *self, void *cookie)
         read_value  = clk_ad9544_reg_read(0, reg_addr); //try again
         if ( (read_value & bit_mask) != (exp_value & bit_mask ) ) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: AD9544 reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
+                xlog(XLOG_HWMON, "AD9544 reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
                 hwmon_send_msg(NODE_ID_AD9544_REG, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
@@ -389,7 +391,7 @@ int ad9544_reg_check(void *self, void *cookie)
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: AD9544 reg check pass, address=0x%08x", reg_addr);
+            xlog(XLOG_HWMON, "AD9544 reg check pass, address=0x%08x", reg_addr);
             hwmon_send_msg(NODE_ID_AD9544_REG, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -409,14 +411,14 @@ int ad9544_pll_check(void *self, void *cookie)
     if (pll_locked != VOS_OK) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: ad9544 pll unlocked");
+                xlog(XLOG_HWMON, "ad9544 pll unlocked");
                 hwmon_send_msg(NODE_ID_AD9544_PLL, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: ad9544 pll locked");
+            xlog(XLOG_HWMON, "ad9544 pll locked");
             hwmon_send_msg(NODE_ID_AD9544_PLL, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -464,14 +466,14 @@ int ad9528_reg_check(void *self, void *cookie)
         read_value  = clk_ad9528_reg_read(0, reg_addr); //try again
         if ( (read_value & bit_mask) != (exp_value & bit_mask ) ) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: AD9528 reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
+                xlog(XLOG_HWMON, "AD9528 reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
                 hwmon_send_msg(NODE_ID_AD9528_REG, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: AD9528 reg check pass, address=0x%08x", reg_addr);
+            xlog(XLOG_HWMON, "AD9528 reg check pass, address=0x%08x", reg_addr);
             hwmon_send_msg(NODE_ID_AD9528_REG, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -491,14 +493,14 @@ int ad9528_pll_check(void *self, void *cookie)
     if (pll_status != VOS_OK) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: ad9528 pll abnormal");
+                xlog(XLOG_HWMON, "ad9528 pll abnormal");
                 hwmon_send_msg(NODE_ID_AD9528_PLL, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: ad9528 pll normal");
+            xlog(XLOG_HWMON, "ad9528 pll normal");
             hwmon_send_msg(NODE_ID_AD9528_PLL, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -545,7 +547,7 @@ int check_cpri_state(void *self, void *cookie)
     if ( link_cnt < pre_rru_cnt ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state == NO_FAULT) {
-                xlog(XLOG_HWMON, "HWMON MSG: rru(cpri) link cnt %d", link_cnt);
+                xlog(XLOG_HWMON, "rru(cpri) link cnt %d", link_cnt);
                 hwmon_send_msg(NODE_ID_CPRI_STATE, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
@@ -553,7 +555,7 @@ int check_cpri_state(void *self, void *cookie)
     } else {
         pre_rru_cnt = link_cnt;
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: rru(cpri) link cnt %d", link_cnt);
+            xlog(XLOG_HWMON, "rru(cpri) link cnt %d", link_cnt);
             hwmon_send_msg(NODE_ID_CPRI_STATE, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_cnt = 0;
@@ -568,7 +570,7 @@ int check_cpri_state(void *self, void *cookie)
 
 int adrv9009_id_check(int chip_id)
 {
-    if (chip_id < 0 || chip_id > 1) { //todo
+    if (chip_id < 0 || chip_id >= sys_conf.MAX_RF_CHIP) {
         return VOS_ERR;
     }
     
@@ -596,14 +598,14 @@ int adrv9009_reg_check(void *self, void *cookie)
         read_value  = adrv9009_reg_read(chip_id, reg_addr); //try again
         if ( (read_value & bit_mask) != (exp_value & bit_mask ) ) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: AD9009 reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
+                xlog(XLOG_HWMON, "AD9009 reg check fail, address=0x%08x read=0x%x expect=0x%x", reg_addr, read_value, exp_value);
                 hwmon_send_msg(NODE_ID_AD9009A_REG + chip_id, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: AD9009 reg check pass, address=0x%08x", reg_addr);
+            xlog(XLOG_HWMON, "AD9009 reg check pass, address=0x%08x", reg_addr);
             hwmon_send_msg(NODE_ID_AD9009A_REG + chip_id, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -628,14 +630,14 @@ int adrv9009_pll_check(void *self, void *cookie)
     if ( pll_locked != VOS_OK) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: AD9009 pll unlocked");
+                xlog(XLOG_HWMON, "AD9009 pll unlocked");
                 hwmon_send_msg(NODE_ID_AD9009A_PLL + chip_id, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else  {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: AD9009 pll locked");
+            xlog(XLOG_HWMON, "AD9009 pll locked");
             hwmon_send_msg(NODE_ID_AD9009A_PLL + chip_id, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;
@@ -682,7 +684,7 @@ int adrv9009_isr_check(void *self, void *cookie)
     if ( file_exist ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: AD9009 ISR WARN");
+                xlog(XLOG_HWMON, "AD9009 ISR WARN");
                 hwmon_send_msg(NODE_ID_AD9009_FAULT, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
@@ -725,14 +727,14 @@ int ublox_gps_lock_check(void *self, void *cookie)
     if (lock_status != VOS_OK) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
-                xlog(XLOG_HWMON, "HWMON MSG: GNSS 1PPS UNLOCK");
+                xlog(XLOG_HWMON, "GNSS 1PPS UNLOCK");
                 hwmon_send_msg(NODE_ID_GNSS_LOCKED, node->base_cfg.node_desc, CRITICAL);
             }
             node->fault_state = CRITICAL;
         }
     } else {
         if (node->fault_state != NO_FAULT) {
-            xlog(XLOG_HWMON, "HWMON MSG: GNSS 1PPS LOCKED");
+            xlog(XLOG_HWMON, "GNSS 1PPS LOCKED");
             hwmon_send_msg(NODE_ID_GNSS_LOCKED, node->base_cfg.node_desc, NO_FAULT);
         }
         node->fault_state = NO_FAULT;

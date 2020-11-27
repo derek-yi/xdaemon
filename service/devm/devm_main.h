@@ -6,6 +6,8 @@ int devm_read_fru_info(int fru_id);
 
 int devm_import_fru_info(void);
 
+char *sys_conf_get(char *key_str);
+
 int cli_show_fru_info(int argc, char **argv);
 int cli_fru_set_mac(int argc, char **argv);
 int cli_fru_set_uuid(int argc, char **argv);

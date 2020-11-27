@@ -1,0 +1,18 @@
+{
+    "fix.config": {
+        "drv.conf"       : "/root/app/oran_daemon/configs/drv_cfg_rru.json",
+        "hwmon.conf"     : "/root/app/oran_daemon/configs/hwmon_cfg_rru.json",
+        "devm.conf"      : "/root/app/oran_daemon/configs/devm_cfg_rru.json",
+        "upcfg.conf"     : "/root/app/oran_daemon/configs/null.json",
+        "max_fru"        : 2,
+        "max_rf_chip"    : 2,
+        "uds.file"       : "/tmp/oran.daemon",
+        "xlog.path"      : "/var/log",
+        "customer.name"  : "fuhuake",
+        "customer.code"  : 100
+    },
+    "dyn.config": {
+        "note"           : "must be string",
+        "mod.date"       : "20201127"
+    }
+}

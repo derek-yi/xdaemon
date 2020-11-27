@@ -7,6 +7,7 @@
 
 #define CLI_PWD_CHECK 
 
+#define TELNETD_LISTEN_PORT     2300
 
 
 #define CMD_OK                  0x00
@@ -24,9 +25,7 @@ void cli_cmd_init(void);
 
 void cli_main_task(void);
 
-int cli_telnet_active();
-
-void cli_telnet_task(int fd);
+int telnet_task_init(void);
 
 int vos_print(const char * format,...);
 

@@ -19,8 +19,9 @@ int dbg_mode = 0;
 
 #ifdef FRU_APP
 
-#define vos_print       printf
-#define vos_msleep(x)   usleep((x)*1000)
+#define vos_print               printf
+#define vos_msleep(x)           usleep((x)*1000)
+#define xlog(x, fmt, args...)   printf(fmt, ##args)
 
 int drv_get_eeprom_info(int fru_id, FRU_EEPROM_INFO *info)
 {
@@ -133,11 +134,10 @@ int devm_read_fru_info(int fru_id)
         return VOS_ERR;
     }
 
-    if (dbg_mode) {
-        vos_print("fru_id %d \r\n", fru_id);
-        vos_print("chassis_info_start %d \r\n", fru_common_info[fru_id].chassis_info_start);
-        vos_print("board_info_start %d \r\n", fru_common_info[fru_id].board_info_start);
-        vos_print("product_info_start %d \r\n", fru_common_info[fru_id].product_info_start);
+    if (dbg_mode) { 
+        vos_print("fru_id %d: chassis_info_start %d, board_info_start %d, product_info_start %d \r\n", 
+            fru_id, fru_common_info[fru_id].chassis_info_start, fru_common_info[fru_id].board_info_start,
+            fru_common_info[fru_id].product_info_start);
     }
 
     memset(&fru_chassis_info[fru_id], 0, sizeof(FRU_CHASSIS_INFO));
@@ -150,7 +150,7 @@ int devm_read_fru_info(int fru_id)
         }
         if ( fru_chassis_info[fru_id].area_checksum != devm_get_area_checksum((uint8 *)&fru_chassis_info[fru_id], sizeof(FRU_CHASSIS_INFO) - 1) ) {
             fru_chassis_info[fru_id].area_len = 0;  //invalid area
-            vos_print("%d: fru_common_info crc error \r\n", __LINE__);
+            xlog(XLOG_WARN, "%d: fru_common_info crc error \r\n", __LINE__);
         }
     }
 
@@ -164,7 +164,7 @@ int devm_read_fru_info(int fru_id)
         }
         if ( fru_board_info[fru_id].area_checksum != devm_get_area_checksum((uint8 *)&fru_board_info[fru_id], sizeof(FRU_BOARD_INFO) - 1) ) {
             fru_board_info[fru_id].area_len = 0;  //invalid area
-            vos_print("%d: fru_board_info crc error \r\n", __LINE__);
+            xlog(XLOG_WARN, "%d: fru_board_info crc error \r\n", __LINE__);
         }
     }
 
@@ -178,7 +178,7 @@ int devm_read_fru_info(int fru_id)
         }
         if ( fru_product_info[fru_id].area_checksum != devm_get_area_checksum((uint8 *)&fru_product_info[fru_id], sizeof(FRU_PRODUCT_INFO) - 1) ) {
             fru_product_info[fru_id].area_len = 0;  //invalid area
-            vos_print("%d: fru_product_info crc error \r\n", __LINE__);
+            xlog(XLOG_WARN, "%d: fru_product_info crc error \r\n", __LINE__);
         }
     }
     
@@ -196,25 +196,25 @@ int devm_show_custom_record(int rec_len, uint8 *record)
     if (!record) return VOS_ERR;
     
     if (record[0] == 0x1) {
-        vos_print("  Format Version: %d\r\n", record[1]);
+        vos_print("  Format Version: 0x%02x\r\n", record[1]);
         vos_print("  Mac Address   : %02x%02x-%02x%02x-%02x%02x\r\n", 
                     record[2], record[3], record[4], record[5], record[6], record[7]);
     }
     else if (record[0] == 0x2) { //2a5d7f1f-4817-4dea-9a70-b8ff7ae4710a
-        vos_print("  Format Version: %d\r\n", record[1]);
+        vos_print("  Format Version: 0x%02x\r\n", record[1]);
         vos_print("  UUID          : %02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x\r\n", 
                     record[2], record[3], record[4], record[5], record[6], record[7], record[8], record[9], 
                     record[10], record[11], record[12], record[13], record[14], record[15], record[16], record[17]);
     }
     else if (record[0] == 0x20) {
-        vos_print("  Format Version: %d\r\n", record[1]);
+        vos_print("  Format Version: 0x%02x\r\n", record[1]);
         vos_print("  SKU ID        : 0x%02x\r\n", record[2]);
     }
     else if (record[0] == 0x40) {
-        vos_print("  Format Version    : %d\r\n", record[1]);
-        vos_print("  Channel Quantity  : %d\r\n", record[2]);
-        vos_print("  Channel.1 Tx Power: %d\r\n", record[3]);
-        vos_print("  Channel.2 Tx Power: %d\r\n", record[4]);
+        vos_print("  Format Version    : 0x%02x\r\n", record[1]);
+        vos_print("  Channel Quantity  : 0x%02x\r\n", record[2]);
+        vos_print("  Channel.1 Tx Power: 0x%02x\r\n", record[3]);
+        vos_print("  Channel.2 Tx Power: 0x%02x\r\n", record[4]);
     }
 #ifndef DAEMON_RELEASE
     else if (rec_len > 0) {
@@ -233,76 +233,77 @@ int devm_show_fru_info(int fru_id)
     uint8 fmt_str[64];
 
     if (fru_chassis_info[fru_id].area_len > 0) {
-        vos_print("Chassis Area Format Type     : 0x%02x \r\n", fru_chassis_info[fru_id].fmt_version);
-        vos_print("Chassis Area Length          : 0x%02x \r\n", fru_chassis_info[fru_id].area_len);
+        vos_print("Chassis Area Format Version  : 0x%02x \r\n", fru_chassis_info[fru_id].fmt_version);
+        vos_print("Chassis Info Area Length     : 0x%02x \r\n", fru_chassis_info[fru_id].area_len);
         vos_print("Chassis Type                 : 0x%02x \r\n", fru_chassis_info[fru_id].chassis_type);
-        vos_print("Chassis Part Num Type        : 0x%02x \r\n", fru_chassis_info[fru_id].chassis_part_num_type);
+        vos_print("Chassis Part Num type        : 0x%02x \r\n", fru_chassis_info[fru_id].chassis_part_num_type);
         FOMRT_FIELD_STR(fmt_str, fru_chassis_info[fru_id].chassis_part_num, 20);
-        vos_print("Chassis Part Num             : %s \r\n", fmt_str);
-        vos_print("Chassis Serial Num Type      : 0x%02x \r\n", fru_chassis_info[fru_id].chassis_serial_num_type);
+        vos_print("Chassis Part Num bytes       : %s \r\n", fmt_str);
+        vos_print("Chassis Serial Num type      : 0x%02x \r\n", fru_chassis_info[fru_id].chassis_serial_num_type);
         FOMRT_FIELD_STR(fmt_str, fru_chassis_info[fru_id].chassis_serial_num, 20);
-        vos_print("Chassis Serial Num           : %s \r\n", fmt_str);
-        vos_print("Custom Chassis Info No.1 Type: 0x%02x \r\n", fru_chassis_info[fru_id].chassis_info_n1_type);
+        vos_print("Chassis Serial Num bytes     : %s \r\n", fmt_str);
+        vos_print("Custom Chassis Info No.1 type: 0x%02x \r\n", fru_chassis_info[fru_id].chassis_info_n1_type);
         devm_show_custom_record(fru_chassis_info[fru_id].chassis_info_n1_type, fru_chassis_info[fru_id].chassis_info_n1);
         vos_print(" \r\n");
     }
     
     if (fru_board_info[fru_id].area_len > 0) {
-        vos_print("Board Info Area Format Type  : 0x%02x \r\n", fru_board_info[fru_id].fmt_version);
+        vos_print("Board Area Format Version    : 0x%02x \r\n", fru_board_info[fru_id].fmt_version);
         vos_print("Board Info Area Length       : 0x%02x \r\n", fru_board_info[fru_id].area_len);
         vos_print("Board Info Language Code     : 0x%02x \r\n", fru_board_info[fru_id].language_code);
-        vos_print("Board Manufacturing Time     : 0x%02x 0x%02x 0x%02x\r\n", fru_board_info[fru_id].Manufacturing_time[0],
+        vos_print("Board Manufacturing Date     : 0x%02x 0x%02x 0x%02x\r\n", fru_board_info[fru_id].Manufacturing_time[0],
                 fru_board_info[fru_id].Manufacturing_time[1], fru_board_info[fru_id].Manufacturing_time[2]);
+        vos_print("Board Manufacturer type      : 0x%02x \r\n", fru_board_info[fru_id].manufacturer_type);
         FOMRT_FIELD_STR(fmt_str, fru_board_info[fru_id].manufacturer_name, 16);
-        vos_print("Board Manufacturer Name      : %s \r\n", fmt_str);
+        vos_print("Board Manufacturer bytes     : %s \r\n", fmt_str);
         vos_print("Board Name type              : 0x%02x \r\n", fru_board_info[fru_id].board_name_type);
         FOMRT_FIELD_STR(fmt_str, fru_board_info[fru_id].board_name, 16);
-        vos_print("Board Name                   : %s \r\n", fmt_str);
-        vos_print("Board Serial Num Type        : 0x%02x \r\n", fru_board_info[fru_id].board_serial_num_type);
+        vos_print("Board Name bytes             : %s \r\n", fmt_str);
+        vos_print("Board Serial Number type     : 0x%02x \r\n", fru_board_info[fru_id].board_serial_num_type);
         FOMRT_FIELD_STR(fmt_str, fru_board_info[fru_id].board_serial_num, 20);
-        vos_print("Board Serial Num             : %s \r\n", fmt_str);
-        vos_print("Board Part Num Type          : 0x%02x \r\n", fru_board_info[fru_id].board_part_num_type);
+        vos_print("Board Serial Number bytes    : %s \r\n", fmt_str);
+        vos_print("Board Part Number type       : 0x%02x \r\n", fru_board_info[fru_id].board_part_num_type);
         FOMRT_FIELD_STR(fmt_str, fru_board_info[fru_id].board_part_num, 20);
-        vos_print("Board Part Num               : %s \r\n", fmt_str);
+        vos_print("Board Part Number bytes      : %s \r\n", fmt_str);
         vos_print("Board FRU File ID type       : 0x%02x \r\n", fru_board_info[fru_id].board_fru_fileid_type);
-        vos_print("Board FRU File ID type       : 0x%02x \r\n", fru_board_info[fru_id].board_fru_fileid);
-        vos_print("Custom Board Info No.1 Type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n1_type);
+        vos_print("Board FRU File ID bytes      : 0x%02x \r\n", fru_board_info[fru_id].board_fru_fileid);
+        vos_print("Custom Board Info No.1 type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n1_type);
         devm_show_custom_record(fru_board_info[fru_id].custom_board_info_n1_type, fru_board_info[fru_id].custom_board_info_n1);
-        vos_print("Custom Board Info No.2 Type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n2_type);
+        vos_print("Custom Board Info No.2 type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n2_type);
         devm_show_custom_record(fru_board_info[fru_id].custom_board_info_n2_type, fru_board_info[fru_id].custom_board_info_n2);
-        vos_print("Custom Board Info No.3 Type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n3_type);
+        vos_print("Custom Board Info No.3 type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n3_type);
         devm_show_custom_record(fru_board_info[fru_id].custom_board_info_n3_type, fru_board_info[fru_id].custom_board_info_n3);
-        vos_print("Custom Board Info No.4 Type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n4_type);
+        vos_print("Custom Board Info No.4 type  : 0x%02x \r\n", fru_board_info[fru_id].custom_board_info_n4_type);
         devm_show_custom_record(fru_board_info[fru_id].custom_board_info_n4_type, fru_board_info[fru_id].custom_board_info_n4);
         vos_print(" \r\n");
     }
 
     if (fru_product_info[fru_id].area_len > 0) {
-        vos_print("Product Info Area Format Type: 0x%02x \r\n", fru_product_info[fru_id].fmt_version);
+        vos_print("Product Area Format Version  : 0x%02x \r\n", fru_product_info[fru_id].fmt_version);
         vos_print("Product Info Area Length     : 0x%02x \r\n", fru_product_info[fru_id].area_len);
         vos_print("Product Info Language Code   : 0x%02x \r\n", fru_product_info[fru_id].language_code);
         vos_print("Product Manufacturer type    : 0x%02x \r\n", fru_product_info[fru_id].manufacturer_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].manufacturer_name, 16);
-        vos_print("Product Manufacturer Name    : %s \r\n", fmt_str);
+        vos_print("Product Manufacturer bytes   : %s \r\n", fmt_str);
         vos_print("Product Name type            : 0x%02x \r\n", fru_product_info[fru_id].product_name_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_name, 16);
-        vos_print("Product Name                 : %s \r\n", fmt_str);
+        vos_print("Product Name bytes           : %s \r\n", fmt_str);
         vos_print("Product Version type         : 0x%02x \r\n", fru_product_info[fru_id].product_version_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_version, 8);
-        vos_print("Product Version              : %s \r\n", fmt_str);
-        vos_print("Product Serial Num Type      : 0x%02x \r\n", fru_product_info[fru_id].product_serial_num_type);
+        vos_print("Product Version bytes        : %s \r\n", fmt_str);
+        vos_print("Product Serial Number type   : 0x%02x \r\n", fru_product_info[fru_id].product_serial_num_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_serial_num, 20);
-        vos_print("Product Serial Num           : %s \r\n", fmt_str);
+        vos_print("Product Serial Number bytes  : %s \r\n", fmt_str);
         vos_print("Product Asset Tag type       : 0x%02x \r\n", fru_product_info[fru_id].product_asset_tag_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_asset_tag, 8);
-        vos_print("Product Asset Tag            : %s \r\n", fmt_str);
+        vos_print("Product Asset Tag bytes      : %s \r\n", fmt_str);
         vos_print("Product FRU File ID type     : 0x%02x \r\n", fru_product_info[fru_id].product_fru_fileid_type);
-        vos_print("Product FRU File ID type     : 0x%02x \r\n", fru_product_info[fru_id].product_fru_fileid);
-        vos_print("Custom Product Info No.1 Type: 0x%02x \r\n", fru_product_info[fru_id].custom_product_info_n1_type);
+        vos_print("Product FRU File ID bytes    : 0x%02x \r\n", fru_product_info[fru_id].product_fru_fileid);
+        vos_print("Custom Product Info No.1 type: 0x%02x \r\n", fru_product_info[fru_id].custom_product_info_n1_type);
         devm_show_custom_record(fru_product_info[fru_id].custom_product_info_n1_type, fru_product_info[fru_id].custom_product_info_n1);
-        vos_print("Custom Product Info No.2 Type: 0x%02x \r\n", fru_product_info[fru_id].custom_product_info_n2_type);
+        vos_print("Custom Product Info No.2 type: 0x%02x \r\n", fru_product_info[fru_id].custom_product_info_n2_type);
         devm_show_custom_record(fru_product_info[fru_id].custom_product_info_n2_type, fru_product_info[fru_id].custom_product_info_n2);
-        vos_print("Custom Product Info No.3 Type: 0x%02x \r\n", fru_product_info[fru_id].custom_product_info_n3_type);
+        vos_print("Custom Product Info No.3 type: 0x%02x \r\n", fru_product_info[fru_id].custom_product_info_n3_type);
         devm_show_custom_record(fru_product_info[fru_id].custom_product_info_n3_type, fru_product_info[fru_id].custom_product_info_n3);
         vos_print(" \r\n");
     }
@@ -333,6 +334,8 @@ int devm_fru_set_mac(int store, uint8 mac[6])
     
     return VOS_OK;
 }
+
+
 
 int devm_fru_set_uuid(int store, uint8 uuid[16])
 {
@@ -412,6 +415,21 @@ int devm_fru_set_rf_calibration(int store, uint8 offset, uint8 value)
 }
 
 #ifndef FRU_APP
+
+int devm_fru_get_uuid(char *uuid_str, int max)
+{
+    if (fru_common_info[0].board_info_start > 0 && fru_board_info[0].custom_board_info_n2_type > 0) {
+        uint8 *ptr = fru_board_info[0].custom_board_info_n2;
+        snprintf(uuid_str, max, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x", 
+                    ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8], ptr[9], 
+                    ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15], ptr[16], ptr[17]);
+    } else {
+        sys_node_readstr("/proc/sys/kernel/random/uuid", uuid_str, max);
+    }
+    
+    return VOS_OK;
+}
+
 //refer to cpri-r21-mul-slave.sh
 int devm_import_fru_info(void)
 {
@@ -425,7 +443,7 @@ int devm_import_fru_info(void)
         sprintf(temp_data, "SZ20201111");
     }
     unlink("/tmp/sn.txt");
-    xlog(XLOG_DEVM, "Product SN: %s", temp_data);
+    xlog(XLOG_WARN, "Product SN: %s", temp_data);
     sys_node_writestr("/tmp/sn.txt", temp_data);
 
     //mac address
@@ -433,7 +451,7 @@ int devm_import_fru_info(void)
         char mac_addr[32];
         uint8 *ptr = fru_board_info[0].custom_board_info_n1;
         sprintf(mac_addr, "%02x:%02x:%02x:%02x:%02x:%02x", ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
-        xlog(XLOG_DEVM, "Board Mac: %s", mac_addr);
+        xlog(XLOG_WARN, "Board Mac: %s", mac_addr);
         sprintf(temp_data, "ifconfig %s hw ether %s", "eth1", mac_addr);
         shell_run_cmd(temp_data);
     } 
@@ -448,7 +466,7 @@ int devm_import_fru_info(void)
         sys_node_readstr("/proc/sys/kernel/random/uuid", temp_data, sizeof(temp_data));
     }
     unlink("/tmp/uuid.txt");
-    xlog(XLOG_DEVM, "Product UUID: %s", temp_data);
+    xlog(XLOG_WARN, "Product UUID: %s", temp_data);
     sys_node_writestr("/tmp/uuid.txt", temp_data);
 
 
@@ -634,7 +652,7 @@ static int drv_fru_json_parse4(FRU_PRODUCT_INFO* area, cJSON* root_tree)
             ret |= _get_json_val((uint8 *)&area->language_code, 1, sub_node);
         else if ( !strcmp(sub_node->string, "Product Manufacturer type") ) 
             ret |= _get_json_val((uint8 *)&area->manufacturer_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Manufacturer bytes") ) 
+        else if ( !strcmp(sub_node->string, "Product Manufacturer bytes") ) 
             ret |= _get_json_val((uint8 *)&area->manufacturer_name, 16, sub_node);
         else if ( !strcmp(sub_node->string, "Product Name type") ) 
             ret |= _get_json_val((uint8 *)&area->product_name_type, 1, sub_node);
@@ -711,6 +729,7 @@ int devm_fru_load_json(int fru_id, char *json_file)
         ret = drv_fru_json_parse1(&common_info, sub_tree);
     }
 
+    xlog(XLOG_WARN, "load %s to fru %d \r\n", json_file, fru_id);
     if (dbg_mode) {
         vos_print("common_info.fmt_version %d\r\n", common_info.fmt_version);
         vos_print("common_info.internal_use_start %d\r\n", common_info.internal_use_start);
