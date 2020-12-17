@@ -2,7 +2,6 @@
 #ifndef _HWMON_MAIN_
 #define _HWMON_MAIN_
 
-
 #define CHK_P_NUM           8
 
 #define CHK_STATUS_IDLE     0
@@ -10,9 +9,6 @@
 #define CHK_STATUS_BUSY     2
 
 typedef int (*chk_func)(void *self, void *cookie);
-
-
-
 
 typedef struct {
     char    *node_desc;
@@ -56,7 +52,7 @@ int hwmon_config_override();
 
 chk_func hwmon_get_fun_ptr(char *func_name);
 
-int hwmon_send_msg(int node_id, char *node_desc, int fault_state);
+int hwmon_send_msg(int node_id, char *node_desc, int fault_state, int fault_src);
 
 int hwmon_enable_task(int enable);
 

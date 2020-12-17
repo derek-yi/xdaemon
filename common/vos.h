@@ -14,13 +14,13 @@ typedef unsigned short uint16;
 typedef unsigned int uint32;
 #endif
 
+#ifndef VOS_OK
 #define VOS_OK      0
 #define VOS_ERR     (-1)
+#endif
 
 #ifndef TRUE
 #define TRUE        1
-#endif
-#ifndef FALSE
 #define FALSE       0
 #endif
 
@@ -40,14 +40,22 @@ int sys_node_writestr(char *node_str, char *wr_buf);
 
 int sys_node_write(char *node_str, int value);
 
-typedef void (* timer_callback)(union sigval);
+typedef int (* timer_cb)(void *param);
 
-int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, void *param);
+typedef struct 
+{
+    int         interval; //0 means disable
+    timer_cb    cb_func;
+    void       *cookie;
+}TIMER_INFO_S;
+
+int vos_create_timer(timer_t *ret_tid, int interval, timer_cb callback, void *param);
 
 void vos_msleep(uint32 milliseconds);
 
 int shell_run_cmd(char *cmd_str);
 
+int vos_print(const char * format,...);
 
 #endif
 

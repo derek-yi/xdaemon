@@ -44,12 +44,6 @@
 			"//param": "fanid limit",
 			"param": [0, 50]
 		},
-		"fpga.reg.check1": {
-			"function": "fpga_reg_check",
-			"interval": 10,
-			"//param": "reg_addr mask exp_val",
-			"param": [0x85000010, 0xffff, 0x28]
-		},
 		"9544.reg.check1": {
 			"function": "ad9544_reg_check",
 			"interval": 20,
@@ -58,17 +52,6 @@
 		},
 		"9544.pll.lock": {
 			"function": "ad9544_pll_check",
-			"interval": 5,
-			"repeat": 3
-		},
-		"9528.reg.check1": {
-			"function": "ad9528_reg_check",
-			"interval": 20,
-			"//param": "addr mask value",
-			"param": [0x508, 0xff, 0xEB]
-		},
-		"9528.pll.lock": {
-			"function": "ad9528_pll_check",
 			"interval": 5,
 			"repeat": 3
 		},

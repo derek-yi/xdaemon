@@ -7,12 +7,13 @@
         "max_fru"        : 2,
         "max_rf_chip"    : 2,
         "uds.file"       : "/tmp/oran.daemon",
-        "xlog.path"      : "/var/log",
+        "xlog.path"      : "/O-RAN/log/",
         "customer.name"  : "fuhuake",
         "customer.code"  : 100
     },
     "dyn.config": {
-        "note"           : "must be string",
+        "default.fru0"   : "/root/fw/fru_bin/fru_dfb.json",
+        "default.fru1"   : "/root/fw/fru_bin/fru_rfb.json",
         "mod.date"       : "20201127"
     }
 }

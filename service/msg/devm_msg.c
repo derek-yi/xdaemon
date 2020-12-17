@@ -15,6 +15,14 @@
 
 #include "devm_msg.h"
 
+#ifdef APP_TEST
+#define VOS_OK      0
+#define VOS_ERR     (-1)
+
+#define xlog(x, fmt, args...)   printf(fmt, ##args)
+#define vos_msleep(x)           usleep((x)*1000)
+
+#endif
 
 #define MAX_CONNECT_NUM 16
 

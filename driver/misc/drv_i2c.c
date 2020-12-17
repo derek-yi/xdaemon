@@ -17,55 +17,14 @@
 
 #include "drv_i2c.h"
 
+#ifndef VOS_OK
 #define VOS_OK      0
 #define VOS_ERR     (-1)
+#endif
 
 #ifdef APP_TEST
 
-#ifndef uint8
-typedef unsigned char uint8;
-#endif
-
-#ifndef uint16
-typedef unsigned short uint16;
-#endif
-
-#ifndef uint32
-typedef unsigned int uint32;
-#endif
-
-#define vos_print       printf
 #define vos_msleep(x)   usleep((x)*1000)
-
-typedef struct 
-{
-    int     i2c_bus;
-    int     dev_id;
-    int     wr_blk_size;
-    int     rd_blk_size;
-    int     chip_size;
-}FRU_EEPROM_INFO;
-
-int drv_get_eeprom_info(int fru_id, FRU_EEPROM_INFO *info)
-{
-    if (fru_id == 1) {
-        info->i2c_bus       = 6;
-        info->dev_id        = 0x50;
-        info->wr_blk_size   = 16;
-        info->rd_blk_size   = 32;
-        info->chip_size     = 256;
-    } else if (fru_id == 0) {
-        info->i2c_bus       = 3;
-        info->dev_id        = 0x54;
-        info->wr_blk_size   = 16;
-        info->rd_blk_size   = 32;
-        info->chip_size     = 1024;
-    } else {
-        return VOS_ERR;
-    }
-    
-    return VOS_OK;
-}
 
 #endif
 

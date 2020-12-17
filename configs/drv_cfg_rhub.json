@@ -42,7 +42,7 @@
 	"fpga.init": {
 		"fpga.step0": [
 			{ "//note": "check key register" },
-			{ "type": "read",  "param":[0x43c30000, 0x0, 0x01000000] },
+			{ "type": "read",  "param":[0x43c30000, 0x1040108, 0xffffffff] },
 			{ "type": "sleep", "param":[10] }
 		]
     }	

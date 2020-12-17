@@ -1,27 +1,42 @@
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
+#include <time.h>
 
 #ifdef FRU_APP
-#include "devm_fru.h" 
 #include "cJSON.h"
-#include "drv_i2c.h"
-
+#include "drv_cpu.h"
+#include "vos.h"
 #else
 #include "daemon_pub.h"
-
 #include "drv_main.h"
+#endif
+
 #include "devm_main.h"
 #include "drv_i2c.h"
 #include "devm_fru.h" 
 
-#endif
-
-int dbg_mode = 0;
+static int dbg_mode = 0;
 
 #ifdef FRU_APP
 
 #define vos_print               printf
 #define vos_msleep(x)           usleep((x)*1000)
 #define xlog(x, fmt, args...)   printf(fmt, ##args)
+
+typedef struct 
+{
+    int     i2c_bus;
+    int     dev_id;
+    int     wr_blk_size;
+    int     rd_blk_size;
+    int     chip_size;
+}FRU_EEPROM_INFO;
 
 int drv_get_eeprom_info(int fru_id, FRU_EEPROM_INFO *info)
 {
@@ -53,7 +68,41 @@ FRU_CHASSIS_INFO    fru_chassis_info[MAX_FRU_NUM];
 FRU_BOARD_INFO      fru_board_info[MAX_FRU_NUM];
 FRU_PRODUCT_INFO    fru_product_info[MAX_FRU_NUM];
 
-int devm_load_area_data(int fru_id, int start, uint8 *area_data, uint32 area_len)
+static inline int hex2num(char c)
+{
+	if (c>='0' && c<='9') return c - '0';
+	if (c>='a' && c<='z') return c - 'a' + 10;//这里+10的原因是:比如16进制的a值为10
+	if (c>='A' && c<='Z') return c - 'A' + 10;
+	return -1;
+}
+ 
+int parse_hex_string(char *hexStr, int max, uint8 *pData)  
+{  
+    int value;
+    int i, j, k;
+    
+    for (i = 0, j = 0, k = 0; i < strlen(hexStr); i++)  
+    {  
+        value = hex2num(hexStr[i]);
+        if (value < 0) continue;
+        
+        if (k == 0) {
+            pData[j] = value;  
+            k++;
+        } else {
+            pData[j] = pData[j]*16 + value;
+            k = 0; j++;
+        }
+
+        if (j == max) break;
+    }     
+
+    if (j < max) return -1;
+    
+    return 0;
+} 
+
+int devm_load_area_data(int fru_id, int start, char *area_data, uint32 area_len)
 {
     int i, ret;
     FRU_EEPROM_INFO info;
@@ -128,7 +177,7 @@ int devm_read_fru_info(int fru_id)
         return VOS_ERR;
     }
     
-    ret = devm_load_area_data(fru_id, 0, (uint8 *)&fru_common_info[fru_id], sizeof(FRU_COMMON_HEADER));
+    ret = devm_load_area_data(fru_id, 0, (char *)&fru_common_info[fru_id], sizeof(FRU_COMMON_HEADER));
     if (ret != VOS_OK) {
 		vos_print("devm_load_area_data failed, ret %d \r\n", ret);
         return VOS_ERR;
@@ -143,42 +192,45 @@ int devm_read_fru_info(int fru_id)
     memset(&fru_chassis_info[fru_id], 0, sizeof(FRU_CHASSIS_INFO));
     if (fru_common_info[fru_id].chassis_info_start > 0) {
         if (dbg_mode) vos_print("%d: load fru_common_info \r\n", __LINE__);
-        ret = devm_load_area_data(fru_id, fru_common_info[fru_id].chassis_info_start, (uint8 *)&fru_chassis_info[fru_id], sizeof(FRU_CHASSIS_INFO));
+        ret = devm_load_area_data(fru_id, fru_common_info[fru_id].chassis_info_start, (char *)&fru_chassis_info[fru_id], sizeof(FRU_CHASSIS_INFO));
         if (ret != VOS_OK) {
-    		vos_print("%d: devm_load_area_data failed, ret %d \r\n", __LINE__, ret);
+    		xlog(XLOG_WARN, "%d: devm_load_area_data failed, ret %d \r\n", __LINE__, ret);
             return VOS_ERR;
         }
         if ( fru_chassis_info[fru_id].area_checksum != devm_get_area_checksum((uint8 *)&fru_chassis_info[fru_id], sizeof(FRU_CHASSIS_INFO) - 1) ) {
-            fru_chassis_info[fru_id].area_len = 0;  //invalid area
+            memset(&fru_chassis_info[fru_id], 0, sizeof(FRU_CHASSIS_INFO));  //invalid area
             xlog(XLOG_WARN, "%d: fru_common_info crc error \r\n", __LINE__);
+            return VOS_ERR;
         }
     }
 
     memset(&fru_board_info[fru_id], 0, sizeof(FRU_BOARD_INFO));
     if (fru_common_info[fru_id].board_info_start > 0) {
         if (dbg_mode)vos_print("%d: load fru_board_info \r\n", __LINE__);
-        ret = devm_load_area_data(fru_id, fru_common_info[fru_id].board_info_start, (uint8 *)&fru_board_info[fru_id], sizeof(FRU_BOARD_INFO));
+        ret = devm_load_area_data(fru_id, fru_common_info[fru_id].board_info_start, (char *)&fru_board_info[fru_id], sizeof(FRU_BOARD_INFO));
         if (ret != VOS_OK) {
-    		vos_print("%d: devm_load_area_data failed, ret %d \r\n", __LINE__, ret);
+    		xlog(XLOG_WARN, "%d: devm_load_area_data failed, ret %d \r\n", __LINE__, ret);
             return VOS_ERR;
         }
         if ( fru_board_info[fru_id].area_checksum != devm_get_area_checksum((uint8 *)&fru_board_info[fru_id], sizeof(FRU_BOARD_INFO) - 1) ) {
-            fru_board_info[fru_id].area_len = 0;  //invalid area
+            memset(&fru_board_info[fru_id], 0, sizeof(FRU_BOARD_INFO));  //invalid area
             xlog(XLOG_WARN, "%d: fru_board_info crc error \r\n", __LINE__);
+            return VOS_ERR;
         }
     }
 
     memset(&fru_product_info[fru_id], 0, sizeof(FRU_PRODUCT_INFO));
     if (fru_common_info[fru_id].product_info_start > 0) {
         if (dbg_mode)vos_print("%d: load fru_product_info \r\n", __LINE__);
-        ret = devm_load_area_data(fru_id, fru_common_info[fru_id].product_info_start, (uint8 *)&fru_product_info[fru_id], sizeof(FRU_PRODUCT_INFO));
+        ret = devm_load_area_data(fru_id, fru_common_info[fru_id].product_info_start, (char *)&fru_product_info[fru_id], sizeof(FRU_PRODUCT_INFO));
         if (ret != VOS_OK) {
-    		vos_print("%d: devm_load_area_data failed, ret %d \r\n", __LINE__, ret);
+    		xlog(XLOG_WARN, "%d: devm_load_area_data failed, ret %d \r\n", __LINE__, ret);
             return VOS_ERR;
         }
         if ( fru_product_info[fru_id].area_checksum != devm_get_area_checksum((uint8 *)&fru_product_info[fru_id], sizeof(FRU_PRODUCT_INFO) - 1) ) {
-            fru_product_info[fru_id].area_len = 0;  //invalid area
+            memset(&fru_product_info[fru_id], 0, sizeof(FRU_PRODUCT_INFO));  //invalid area
             xlog(XLOG_WARN, "%d: fru_product_info crc error \r\n", __LINE__);
+            return VOS_ERR;
         }
     }
     
@@ -288,6 +340,9 @@ int devm_show_fru_info(int fru_id)
         vos_print("Product Name type            : 0x%02x \r\n", fru_product_info[fru_id].product_name_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_name, 16);
         vos_print("Product Name bytes           : %s \r\n", fmt_str);
+        vos_print("Product Part Number type     : 0x%02x \r\n", fru_product_info[fru_id].product_part_num_type);
+        FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_part_num, 20);
+        vos_print("Product Part Number bytes    : %s \r\n", fmt_str);
         vos_print("Product Version type         : 0x%02x \r\n", fru_product_info[fru_id].product_version_type);
         FOMRT_FIELD_STR(fmt_str, fru_product_info[fru_id].product_version, 8);
         vos_print("Product Version bytes        : %s \r\n", fmt_str);
@@ -316,8 +371,7 @@ int devm_fru_set_mac(int store, uint8 mac[6])
     int ret;
     FRU_BOARD_INFO *pInfo;
 
-    pInfo = &fru_board_info[0]; //todo
-    
+    pInfo = &fru_board_info[0];
     pInfo->custom_board_info_n1_type = 0x8;
     pInfo->custom_board_info_n1[0] = 0x1;
     pInfo->custom_board_info_n1[1] = 0x1;
@@ -335,15 +389,12 @@ int devm_fru_set_mac(int store, uint8 mac[6])
     return VOS_OK;
 }
 
-
-
 int devm_fru_set_uuid(int store, uint8 uuid[16])
 {
     int ret;
     FRU_BOARD_INFO *pInfo;
 
-    pInfo = &fru_board_info[0]; //todo
-    
+    pInfo = &fru_board_info[0];
     pInfo->custom_board_info_n2_type = 0x18;
     pInfo->custom_board_info_n2[0] = 0x2;
     pInfo->custom_board_info_n2[1] = 0x1;
@@ -361,13 +412,27 @@ int devm_fru_set_uuid(int store, uint8 uuid[16])
     return VOS_OK;
 }
 
+int devm_fru_get_skuid(uint8 *skuid)
+{
+    FRU_PRODUCT_INFO *pInfo;
+
+    if (!skuid) return VOS_ERR;
+    
+    pInfo = &fru_product_info[0];
+    if ( pInfo->custom_product_info_n1_type == 0x8 && pInfo->custom_product_info_n1[0] == 0x20 ) {
+        *skuid = pInfo->custom_product_info_n1[2];
+        return VOS_OK;
+    }
+    
+    return VOS_ERR;
+}
+
 int devm_fru_set_skuid(int store, uint8 skuid)
 {
     int ret;
     FRU_PRODUCT_INFO *pInfo;
 
-    pInfo = &fru_product_info[0]; //todo
-    
+    pInfo = &fru_product_info[0];
     pInfo->custom_product_info_n1_type = 0x8;
     pInfo->custom_product_info_n1[0] = 0x20;
     pInfo->custom_product_info_n1[1] = 0x1;
@@ -375,7 +440,7 @@ int devm_fru_set_skuid(int store, uint8 skuid)
     pInfo->area_checksum = devm_get_area_checksum((uint8 *)pInfo, sizeof(FRU_PRODUCT_INFO) - 1);
 
     if (store) {
-        ret = devm_store_area_data(0, fru_common_info[0].board_info_start, (uint8 *)pInfo, sizeof(FRU_PRODUCT_INFO));
+        ret = devm_store_area_data(0, fru_common_info[0].product_info_start, (uint8 *)pInfo, sizeof(FRU_PRODUCT_INFO));
         if (ret != VOS_OK) {
             vos_print("%d: devm_store_area_data failed, ret %d \r\n", __LINE__, ret);
             return VOS_ERR;
@@ -385,22 +450,60 @@ int devm_fru_set_skuid(int store, uint8 skuid)
     return VOS_OK;
 }
 
-int devm_fru_set_rf_calibration(int store, uint8 offset, uint8 value)
+int devm_fru_get_rf_cal(uint8 offset, uint8 *value)
+{
+    FRU_BOARD_INFO *pInfo;
+
+    if ( (offset > 60) || (value == NULL) ){
+        return VOS_ERR;
+    }
+    
+    pInfo = &fru_board_info[1];
+    if ( pInfo->custom_board_info_n3_type == 0x3F && pInfo->custom_board_info_n3[0] == 0x40 ) {
+        *value = pInfo->custom_board_info_n3[offset + 2];
+        return VOS_OK;
+    }
+    
+    return VOS_ERR;
+}
+
+int devm_fru_set_sn(int store, int fru_id, char *buffer, int buf_len)
+{
+    int ret;
+    FRU_BOARD_INFO *pInfo;
+    
+    pInfo = &fru_board_info[fru_id];
+    pInfo->board_serial_num_type = 0xD4;
+    memset(pInfo->board_serial_num, 0, 20);
+    memcpy(pInfo->board_serial_num, buffer, buf_len);
+
+    if (store) {
+        pInfo->area_checksum = devm_get_area_checksum((uint8 *)pInfo, sizeof(FRU_BOARD_INFO) - 1);
+        ret = devm_store_area_data(fru_id, fru_common_info[fru_id].board_info_start, (uint8 *)pInfo, sizeof(FRU_BOARD_INFO));
+        if (ret != VOS_OK) {
+            vos_print("%d: devm_store_area_data failed, ret %d \r\n", __LINE__, ret);
+            return VOS_ERR;
+        }
+    }
+
+    return VOS_OK;
+}
+
+int devm_fru_set_rf_cal(int store, uint8 offset, uint8 value)
 {
     int ret;
     FRU_BOARD_INFO *pInfo;
 
-    if (offset >= 63) {
+    if (offset > 60) {
         vos_print("%d: error offset %d \r\n", __LINE__, offset);
         return VOS_ERR;
     }
     
-    pInfo = &fru_board_info[1]; //todo
-    
+    pInfo = &fru_board_info[1];
     pInfo->custom_board_info_n3_type = 0x3F;
     pInfo->custom_board_info_n3[0] = 0x40;
     pInfo->custom_board_info_n3[1] = 0x1;
-    pInfo->custom_board_info_n3[offset] = value;
+    pInfo->custom_board_info_n3[offset + 2] = value;
     pInfo->area_checksum = devm_get_area_checksum((uint8 *)pInfo, sizeof(FRU_BOARD_INFO) - 1);
 
     if (store) {
@@ -430,45 +533,120 @@ int devm_fru_get_uuid(char *uuid_str, int max)
     return VOS_OK;
 }
 
+int old_uuid_info_exist(char *temp_buf)
+{
+    int i;
+    int dash_cnt = 0;
+    
+    for (i = 35; i < 72; i++ ) {
+        if (temp_buf[i] == '-') dash_cnt++;
+    }
+    //xlog(XLOG_WARN, "dash_cnt %d", dash_cnt);
+    if (dash_cnt == 4) return TRUE;
+    
+    //xlog(XLOG_WARN, "debug: %s", &temp_buf[36]);
+    return FALSE;
+}
+
 //refer to cpri-r21-mul-slave.sh
 int devm_import_fru_info(void)
-{
-    char temp_data[64];
+{   
+    int ret;
+    char temp_buf[256];
+    char uuid_str[128];
+    char sn_str[32];
+    int old_info_exist = FALSE;
+    uint8 uuid[16];
+    char *default_fru = NULL;
+
+    if (SYS_MAX_FRU_ID == 0) return VOS_OK;
+
+    ret = devm_read_fru_info(0);
+#ifndef DAEMON_RELEASE
+    if (ret != VOS_OK) {
+        devm_load_area_data(0, 0, temp_buf, 128);
+        if (old_uuid_info_exist(temp_buf)) {
+            memcpy(sn_str, temp_buf, 16);
+            memcpy(uuid_str, temp_buf + 35, 36);
+            old_info_exist = TRUE;
+        }
+        default_fru = sys_conf_get("default.fru0");
+        if (default_fru) {
+            xlog(XLOG_WARN, "load default fru cfg0");
+            devm_fru_load_json(0, default_fru);
+            ret = devm_read_fru_info(0);//try again
+        }
+    }
+#endif
+    if (ret != VOS_OK) {
+        xlog(XLOG_WARN, "failed to read fru info0");
+        return VOS_ERR;
+    }
+
+    if (SYS_MAX_FRU_ID > 1) {
+        ret = devm_read_fru_info(1);
+#ifndef DAEMON_RELEASE
+        if (ret != VOS_OK) {
+            default_fru = sys_conf_get("default.fru1");
+            if (default_fru) {
+                xlog(XLOG_WARN, "load default fru cfg1");
+                devm_fru_load_json(1, default_fru);
+                ret = devm_read_fru_info(1);//try again
+            }            
+       }
+#endif
+        if (ret != VOS_OK) {
+            xlog(XLOG_WARN, "failed to read fru info1");
+            return VOS_ERR;
+        }
+    }
 
     //将sn写入文件/tmp/sn.txt
-    if (fru_common_info[0].product_info_start > 0 && fru_product_info[0].product_serial_num_type > 0) {
-        memcpy(temp_data, fru_product_info[0].product_serial_num, 20);
-        temp_data[20] = 0;
+    if (old_info_exist) {
+        sprintf(temp_buf, "%s", sn_str);
+        xlog(XLOG_WARN, "old sn_str: %s", temp_buf);
+        devm_fru_set_sn(TRUE, 0, temp_buf, 16);
+    } else if(fru_common_info[0].board_info_start > 0 && fru_board_info[0].board_serial_num_type > 0) {
+        memcpy(temp_buf, fru_board_info[0].board_serial_num, 20);
+        temp_buf[20] = 0;
     } else {
-        sprintf(temp_data, "SZ20201111");
+        sprintf(temp_buf, "SZ20201111");
+        xlog(XLOG_WARN, "default sn_str: %s", temp_buf);
+        devm_fru_set_sn(TRUE, 0, temp_buf, strlen(temp_buf));
     }
-    unlink("/tmp/sn.txt");
-    xlog(XLOG_WARN, "Product SN: %s", temp_data);
-    sys_node_writestr("/tmp/sn.txt", temp_data);
+    xlog(XLOG_WARN, "Product SN: %s", temp_buf);
+    sys_node_writestr("/tmp/sn.txt", temp_buf);
 
     //mac address
-    if (fru_common_info[0].board_info_start > 0 && fru_board_info[0].custom_board_info_n1_type > 0) {
+    if (fru_board_info[0].custom_board_info_n1_type > 0 && fru_board_info[0].custom_board_info_n1[0] > 0) {
         char mac_addr[32];
         uint8 *ptr = fru_board_info[0].custom_board_info_n1;
         sprintf(mac_addr, "%02x:%02x:%02x:%02x:%02x:%02x", ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
         xlog(XLOG_WARN, "Board Mac: %s", mac_addr);
-        sprintf(temp_data, "ifconfig %s hw ether %s", "eth1", mac_addr);
-        shell_run_cmd(temp_data);
+        sprintf(temp_buf, "ifconfig %s hw ether %s up", "eth0", mac_addr);
+        shell_run_cmd("ifconfig eth0 down");
+        shell_run_cmd(temp_buf);
     } 
     
     //将UUID写入文件/tmp/uuid.txt
-    if (fru_common_info[0].board_info_start > 0 && fru_board_info[0].custom_board_info_n2_type > 0) {
+    if (old_info_exist) {
+        xlog(XLOG_WARN, "old uuid_str: %s", uuid_str);
+        parse_hex_string(uuid_str, 16, uuid);
+        devm_fru_set_uuid(TRUE, uuid);
+    } else if(fru_board_info[0].custom_board_info_n2_type > 0 && fru_board_info[0].custom_board_info_n2[0] > 0) {
         uint8 *ptr = fru_board_info[0].custom_board_info_n2;
-        sprintf(temp_data, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x", 
+        sprintf(uuid_str, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x", 
                     ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8], ptr[9], 
                     ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15], ptr[16], ptr[17]);
     } else {
-        sys_node_readstr("/proc/sys/kernel/random/uuid", temp_data, sizeof(temp_data));
+        sys_node_readstr("/proc/sys/kernel/random/uuid", uuid_str, sizeof(uuid_str));
+        xlog(XLOG_WARN, "new uuid_str: %s", uuid_str);
+        parse_hex_string(uuid_str, 16, uuid);
+        devm_fru_set_uuid(TRUE, uuid);
     }
-    unlink("/tmp/uuid.txt");
-    xlog(XLOG_WARN, "Product UUID: %s", temp_data);
-    sys_node_writestr("/tmp/uuid.txt", temp_data);
-
+    xlog(XLOG_WARN, "Product UUID: %s", uuid_str);
+    sprintf(temp_buf, "echo '%s' > /tmp/uuid.txt", uuid_str);
+    shell_run_cmd(temp_buf);
 
     //RF calibration param
     
@@ -490,29 +668,46 @@ static int _get_json_val(uint8 *dst, int max_len, cJSON* root)
         if ( !strcmp(sub_node->string, "Data Format") )  {
             if ( !strcmp(sub_node->valuestring, "Binary") ) mode = 1;
             else if ( !strcmp(sub_node->valuestring, "ASCII") ) mode = 2;
+            else return -1;
+        }
+
+        if ( !strcmp(sub_node->string, "MaxLen") )  {
+            if (max_len != sub_node->valueint) return -2;
         }
 
         if ( !strcmp(sub_node->string, "value") && (mode == 1) )  {
             int p_size = cJSON_GetArraySize(sub_node);
-            if (p_size > max_len) p_size = max_len;
+            if (p_size > max_len) return -3;
+            
             for (j = 0; j < p_size; j++) {
                 cJSON* tmp_param = cJSON_GetArrayItem(sub_node, j);
                 dst[j] = (uint8)tmp_param->valueint;
                 //vos_print("%d: mode 1, value %d \r\n", __LINE__, tmp_param->valueint);
             }
+            return VOS_OK;
         }
         else if ( !strcmp(sub_node->string, "value") && (mode == 2) )  {
-            snprintf((char *)dst, max_len, "%s", sub_node->valuestring);
+            if (strlen(sub_node->valuestring) > max_len) return -4;
+            memcpy((char *)dst, sub_node->valuestring, strlen(sub_node->valuestring));
             //vos_print("%d: mode 2, value %s \r\n", __LINE__, sub_node->valuestring);
+            return VOS_OK;
         }
     }
 
-    return VOS_OK;
+    return VOS_ERR;
 }
 
+#define GET_JSON_VALUE(dst_ptr, max_len, js_node)    \
+do {    \
+    ret = _get_json_val((uint8 *)(dst_ptr), max_len, js_node);  \
+    if (ret != VOS_OK) break;   \
+    node_cnt++; \
+} while(0)
+    
 static int drv_fru_json_parse1(FRU_COMMON_HEADER* area, cJSON* root_tree)
 {
     int ret = VOS_OK;
+    int node_cnt = 0;
     int i, sub_cnt;
     
     sub_cnt = cJSON_GetArraySize(root_tree);
@@ -522,17 +717,21 @@ static int drv_fru_json_parse1(FRU_COMMON_HEADER* area, cJSON* root_tree)
 
         //vos_print("%d: sub_node->string %s \r\n", __LINE__, sub_node->string);
         if ( !strcmp(sub_node->string, "Common Header Format Version") ) 
-            ret |= _get_json_val((uint8 *)&area->fmt_version, 1, sub_node);
+            GET_JSON_VALUE(&area->fmt_version, 1, sub_node);
         else if ( !strcmp(sub_node->string, "Internal Use Area Starting Offset") ) 
-            ret |= _get_json_val((uint8 *)&area->internal_use_start, 1, sub_node);
+            GET_JSON_VALUE(&area->internal_use_start, 1, sub_node);
         else if ( !strcmp(sub_node->string, "Chassis Info Area Starting Offset") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_info_start, 1, sub_node);
+            GET_JSON_VALUE(&area->chassis_info_start, 1, sub_node);
         else if ( !strcmp(sub_node->string, "Board Info Area Starting Offset") ) 
-            ret |= _get_json_val((uint8 *)&area->board_info_start, 1, sub_node);
+            GET_JSON_VALUE(&area->board_info_start, 1, sub_node);
         else if ( !strcmp(sub_node->string, "Product Info Area Starting Offset") ) 
-            ret |= _get_json_val((uint8 *)&area->product_info_start, 1, sub_node);
+            GET_JSON_VALUE(&area->product_info_start, 1, sub_node);
         else if ( !strcmp(sub_node->string, "MultiRecord Area Starting Offset") ) 
-            ret |= _get_json_val((uint8 *)&area->multi_record_start, 1, sub_node);
+            GET_JSON_VALUE(&area->multi_record_start, 1, sub_node);
+    }
+
+    if (ret != VOS_OK || node_cnt != 6) {
+        vos_print("%d: json parse error(%d)\r\n", __LINE__, ret);
     }
     
     return ret;
@@ -541,6 +740,7 @@ static int drv_fru_json_parse1(FRU_COMMON_HEADER* area, cJSON* root_tree)
 static int drv_fru_json_parse2(FRU_CHASSIS_INFO* area, cJSON* root_tree)
 {
     int ret = VOS_OK;
+    int node_cnt = 0;
     int i, sub_cnt;
     
     sub_cnt = cJSON_GetArraySize(root_tree);
@@ -548,26 +748,28 @@ static int drv_fru_json_parse2(FRU_CHASSIS_INFO* area, cJSON* root_tree)
         cJSON* sub_node = cJSON_GetArrayItem(root_tree, i); //each field
 
         //vos_print("%d: sub_node->string %s \r\n", __LINE__, sub_node->string);
-        if ( !strcmp(sub_node->string, "Chassis Info Area Format Version") ) 
-            ret |= _get_json_val((uint8 *)&area->fmt_version, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Chassis Info Area Length") ) 
-            ret |= _get_json_val((uint8 *)&area->area_len, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Chassis Type") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Chassis Part Number type") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_part_num_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Chassis Part Number bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_part_num, 20, sub_node);
-        else if ( !strcmp(sub_node->string, "Chassis Serial Number type") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_serial_num_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Chassis Serial Number bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_serial_num, 20, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Chassis Info No.1 type") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_info_n1_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Chassis Info No.1 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->chassis_info_n1, 16, sub_node);
-        else if ( !strcmp(sub_node->string, "End of Fields marker") ) 
-            ret |= _get_json_val((uint8 *)&area->end_marker, 1, sub_node);
+        if ( !strcmp(sub_node->string, "Chassis Info Area Format Version") ) {
+            GET_JSON_VALUE(&area->fmt_version, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Chassis Info Area Length") ) {
+            GET_JSON_VALUE(&area->area_len, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Chassis Type") )  {
+            GET_JSON_VALUE(&area->chassis_type, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Chassis Part Number bytes") )  {
+            GET_JSON_VALUE(&area->chassis_part_num, 20, sub_node);
+            area->chassis_part_num_type = 0xD4;
+        } else if ( !strcmp(sub_node->string, "Chassis Serial Number bytes") )  {
+            GET_JSON_VALUE(&area->chassis_serial_num, 20, sub_node);
+            area->chassis_serial_num_type = 0xD4;
+        } else if ( !strcmp(sub_node->string, "Custom Chassis Info No.1 bytes") )  {
+            GET_JSON_VALUE(&area->chassis_info_n1, 16, sub_node);
+            area->chassis_info_n1_type = 0x10;
+        } else if ( !strcmp(sub_node->string, "End of Fields marker") )  {
+            GET_JSON_VALUE((uint8 *)&area->end_marker, 1, sub_node);
+        }
+    }
+
+    if (ret != VOS_OK || node_cnt != 7) {
+        vos_print("%d: json parse error(%d)\r\n", __LINE__, ret);
     }
     
     return ret;
@@ -576,6 +778,7 @@ static int drv_fru_json_parse2(FRU_CHASSIS_INFO* area, cJSON* root_tree)
 static int drv_fru_json_parse3(FRU_BOARD_INFO* area, cJSON* root_tree)
 {
     int ret = VOS_OK;
+    int node_cnt = 0;
     int i, sub_cnt;
     
     sub_cnt = cJSON_GetArraySize(root_tree);
@@ -583,52 +786,48 @@ static int drv_fru_json_parse3(FRU_BOARD_INFO* area, cJSON* root_tree)
         cJSON* sub_node = cJSON_GetArrayItem(root_tree, i); //each field
 
         //vos_print("%d: sub_node->string %s \r\n", __LINE__, sub_node->string);
-        if ( !strcmp(sub_node->string, "Board Info Area Format Version") ) 
-            ret |= _get_json_val((uint8 *)&area->fmt_version, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Info Area Length") ) 
-            ret |= _get_json_val((uint8 *)&area->area_len, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Info Language Code") ) 
-            ret |= _get_json_val((uint8 *)&area->language_code, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Manufacturing Date") ) 
-            ret |= _get_json_val((uint8 *)&area->Manufacturing_time, 3, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Manufacturer type") ) 
-            ret |= _get_json_val((uint8 *)&area->manufacturer_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Manufacturer bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->manufacturer_name, 16, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Name type") ) 
-            ret |= _get_json_val((uint8 *)&area->board_name_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Name bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->board_name, 16, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Serial Number type") ) 
-            ret |= _get_json_val((uint8 *)&area->board_serial_num_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Serial Number bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->board_serial_num, 20, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Part Number type") ) 
-            ret |= _get_json_val((uint8 *)&area->board_part_num_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board Part Number bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->board_part_num, 20, sub_node);
-        else if ( !strcmp(sub_node->string, "Board FRU File ID type") ) 
-            ret |= _get_json_val((uint8 *)&area->board_fru_fileid_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Board FRU File ID bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->board_fru_fileid, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.1 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n1_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.1 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n1, 8, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.2 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n2_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.2 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n2, 24, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.3 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n3_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.3 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n3, 63, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.4 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n4_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Board Info No.4 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_board_info_n4, 63, sub_node);
-        else if ( !strcmp(sub_node->string, "End of Fields marker") ) 
-            ret |= _get_json_val((uint8 *)&area->end_marker, 1, sub_node);
+        if ( !strcmp(sub_node->string, "Board Info Area Format Version") )  { 
+            GET_JSON_VALUE(&area->fmt_version, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Board Info Area Length") )  {
+            GET_JSON_VALUE(&area->area_len, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Board Info Language Code") )  {
+            GET_JSON_VALUE(&area->language_code, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Board Manufacturing Date") )  {
+            GET_JSON_VALUE(&area->Manufacturing_time, 3, sub_node);
+        } else if ( !strcmp(sub_node->string, "Board Manufacturer bytes") )  {
+            GET_JSON_VALUE(&area->manufacturer_name, 16, sub_node);
+            area->manufacturer_type = 0xD0;
+        } else if ( !strcmp(sub_node->string, "Board Name bytes") )  {
+            GET_JSON_VALUE(&area->board_name, 16, sub_node);
+            area->board_name_type = 0xD0;
+        } else if ( !strcmp(sub_node->string, "Board Serial Number bytes") )  {
+            GET_JSON_VALUE(&area->board_serial_num, 20, sub_node);
+            area->board_serial_num_type = 0xD4;
+        } else if ( !strcmp(sub_node->string, "Board Part Number bytes") )  {
+            GET_JSON_VALUE(&area->board_part_num, 20, sub_node);
+            area->board_part_num_type = 0xD4;
+        } else if ( !strcmp(sub_node->string, "Board FRU File ID bytes") )  {
+            GET_JSON_VALUE(&area->board_fru_fileid, 1, sub_node);
+            area->board_fru_fileid_type = 0x01;
+        } else if ( !strcmp(sub_node->string, "Custom Board Info No.1 bytes") )  {
+            GET_JSON_VALUE(&area->custom_board_info_n1, 8, sub_node);
+            area->custom_board_info_n1_type = 0x08;
+        } else if ( !strcmp(sub_node->string, "Custom Board Info No.2 bytes") )  {
+            GET_JSON_VALUE(&area->custom_board_info_n2, 24, sub_node);
+            area->custom_board_info_n2_type = 0x18;
+        } else if ( !strcmp(sub_node->string, "Custom Board Info No.3 bytes") )  {
+            GET_JSON_VALUE(&area->custom_board_info_n3, 63, sub_node);
+            area->custom_board_info_n3_type = 0x3F;
+        } else if ( !strcmp(sub_node->string, "Custom Board Info No.4 bytes") )  {
+            GET_JSON_VALUE(&area->custom_board_info_n4, 63, sub_node);
+            area->custom_board_info_n4_type = 0x3F;
+        } else if ( !strcmp(sub_node->string, "End of Fields marker") )  {
+            GET_JSON_VALUE(&area->end_marker, 1, sub_node);
+        }
+    }
+
+    if (ret != VOS_OK || node_cnt != 14) {
+        vos_print("%d: json parse error(%d)\r\n", __LINE__, ret);
     }
     
     return ret;
@@ -637,6 +836,7 @@ static int drv_fru_json_parse3(FRU_BOARD_INFO* area, cJSON* root_tree)
 static int drv_fru_json_parse4(FRU_PRODUCT_INFO* area, cJSON* root_tree)
 {
     int ret = VOS_OK;
+    int node_cnt = 0;
     int i, sub_cnt;
     
     sub_cnt = cJSON_GetArraySize(root_tree);
@@ -644,54 +844,49 @@ static int drv_fru_json_parse4(FRU_PRODUCT_INFO* area, cJSON* root_tree)
         cJSON* sub_node = cJSON_GetArrayItem(root_tree, i); //each field
 
         //vos_print("%d: sub_node->string %s \r\n", __LINE__, sub_node->string);
-        if ( !strcmp(sub_node->string, "Product Info Area Format Version") ) 
-            ret |= _get_json_val((uint8 *)&area->fmt_version, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Info Area Length") ) 
-            ret |= _get_json_val((uint8 *)&area->area_len, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Info Language Code") ) 
-            ret |= _get_json_val((uint8 *)&area->language_code, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Manufacturer type") ) 
-            ret |= _get_json_val((uint8 *)&area->manufacturer_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Manufacturer bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->manufacturer_name, 16, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Name type") ) 
-            ret |= _get_json_val((uint8 *)&area->product_name_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Name bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->product_name, 16, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Part Number type") ) 
-            ret |= _get_json_val((uint8 *)&area->product_part_num_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Part Number bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->product_part_num, 20, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Version type") ) 
-            ret |= _get_json_val((uint8 *)&area->product_version_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Version bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->product_version, 8, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Serial Number type") ) 
-            ret |= _get_json_val((uint8 *)&area->product_serial_num_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Serial Number bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->product_serial_num, 20, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Asset Tag type") ) 
-            ret |= _get_json_val((uint8 *)&area->product_asset_tag_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product Asset Tag bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->product_asset_tag, 8, sub_node);
-        else if ( !strcmp(sub_node->string, "Product FRU File ID type") ) 
-            ret |= _get_json_val((uint8 *)&area->product_fru_fileid_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Product FRU File ID bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->product_fru_fileid, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Product Info No.1 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_product_info_n1_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Product Info No.1 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_product_info_n1, 8, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Product Info No.2 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_product_info_n2_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Product Info No.2 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_product_info_n2, 24, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Product Info No.3 type") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_product_info_n3_type, 1, sub_node);
-        else if ( !strcmp(sub_node->string, "Custom Product Info No.3 bytes") ) 
-            ret |= _get_json_val((uint8 *)&area->custom_product_info_n3, 56, sub_node);
-        else if ( !strcmp(sub_node->string, "End of Fields marker") ) 
-            ret |= _get_json_val((uint8 *)&area->end_marker, 1, sub_node);
+        if ( !strcmp(sub_node->string, "Product Info Area Format Version") )   {
+            GET_JSON_VALUE(&area->fmt_version, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Product Info Area Length") )   {
+            GET_JSON_VALUE(&area->area_len, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Product Info Language Code") )   {
+            GET_JSON_VALUE(&area->language_code, 1, sub_node);
+        } else if ( !strcmp(sub_node->string, "Product Manufacturer bytes") )   {
+            GET_JSON_VALUE(&area->manufacturer_name, 16, sub_node);
+            area->manufacturer_type = 0xD0;
+        } else if ( !strcmp(sub_node->string, "Product Name bytes") )   {
+            GET_JSON_VALUE(&area->product_name, 16, sub_node);
+            area->product_name_type = 0xD0;
+        } else if ( !strcmp(sub_node->string, "Product Part Number bytes") )   {
+            GET_JSON_VALUE(&area->product_part_num, 20, sub_node);
+            area->product_part_num_type = 0xD4;
+        } else if ( !strcmp(sub_node->string, "Product Version bytes") )   {
+            GET_JSON_VALUE(&area->product_version, 8, sub_node);
+            area->product_version_type = 0xC8;
+        } else if ( !strcmp(sub_node->string, "Product Serial Number bytes") )   {
+            GET_JSON_VALUE(&area->product_serial_num, 20, sub_node);
+            area->product_serial_num_type = 0xD4;
+        } else if ( !strcmp(sub_node->string, "Product Asset Tag bytes") )   {
+            GET_JSON_VALUE(&area->product_asset_tag, 8, sub_node);
+            area->product_asset_tag_type = 0xC8;
+        } else if ( !strcmp(sub_node->string, "Product FRU File ID bytes") )   {
+            GET_JSON_VALUE(&area->product_fru_fileid, 1, sub_node);
+            area->product_fru_fileid_type = 0x01;
+        } else if ( !strcmp(sub_node->string, "Custom Product Info No.1 bytes") )   {
+            GET_JSON_VALUE(&area->custom_product_info_n1, 8, sub_node);
+            area->custom_product_info_n1_type = 0x08;
+        } else if ( !strcmp(sub_node->string, "Custom Product Info No.2 bytes") )   {
+            GET_JSON_VALUE(&area->custom_product_info_n2, 24, sub_node);
+            area->custom_product_info_n2_type = 0x18;
+        } else if ( !strcmp(sub_node->string, "Custom Product Info No.3 bytes") )   {
+            GET_JSON_VALUE(&area->custom_product_info_n3, 56, sub_node);
+            area->custom_product_info_n3_type = 0x38;
+        } else if ( !strcmp(sub_node->string, "End of Fields marker") )   {
+            GET_JSON_VALUE(&area->end_marker, 1, sub_node);
+        }
+    }
+
+    if (ret != VOS_OK || node_cnt != 14) {
+        vos_print("%d: json parse error(%d)\r\n", __LINE__, ret);
     }
     
     return ret;
@@ -830,40 +1025,6 @@ int cli_show_fru_info(int argc, char **argv)
     return VOS_OK;
 }    
 
-static inline int hex2num(char c)
-{
-	if (c>='0' && c<='9') return c - '0';
-	if (c>='a' && c<='z') return c - 'a' + 10;//这里+10的原因是:比如16进制的a值为10
-	if (c>='A' && c<='Z') return c - 'A' + 10;
-	return -1;
-}
- 
-int parse_hex_string(char *hexStr, int max, uint8 *pData)  
-{  
-    int value;
-    int i, j, k;
-    
-    for (i = 0, j = 0, k = 0; i < strlen(hexStr); i++)  
-    {  
-        value = hex2num(hexStr[i]);
-        if (value < 0) continue;
-        
-        if (k == 0) {
-            pData[j] = value;  
-            k++;
-        } else {
-            pData[j] = pData[j]*16 + value;
-            k = 0; j++;
-        }
-
-        if (j == max) break;
-    }     
-
-    if (j < max) return -1;
-    
-    return 0;
-} 
-
 int cli_fru_set_mac(int argc, char **argv)
 {
     uint8 mac_addr[6];
@@ -930,7 +1091,7 @@ int cli_fru_set_rf_calibration(int argc, char **argv)
     value  = strtoul(argv[2], 0, 0);  
     if (argc > 3) store = strtoul(argv[3], 0, 0);  
    
-    devm_fru_set_rf_calibration(store, offset, value);
+    devm_fru_set_rf_cal(store, offset, value);
     return VOS_OK;
 }  
 
@@ -961,9 +1122,101 @@ int cli_fru_load_json(int argc, char **argv)
     return VOS_OK;
 }  
 
+int cli_fru_set_sn(int argc, char **argv)
+{
+    int ret;
+    int fru_id;
+    FRU_EEPROM_INFO info;
+
+    if (argc < 3) {
+        vos_print("Usage: <%s> <fru-id> <sn-str>\r\n", argv[0]);
+        return VOS_OK;
+    }
+
+    fru_id = atoi(argv[1]);
+    ret = drv_get_eeprom_info(fru_id, &info);
+    if (ret != VOS_OK) {
+        vos_print("invalid fru-id %d \r\n", fru_id);
+        return VOS_ERR;
+    }
+
+    if (strlen(argv[2]) > 20) {
+        vos_print("\r\n serial number too long \r\n");
+        return VOS_OK;
+    }
+
+    vos_print("Save board serial num ... ");
+    ret = devm_fru_set_sn(TRUE, fru_id, argv[2], strlen(argv[2]));
+    if (ret != VOS_OK) vos_print("Failed \r\n");
+    else vos_print("OK \r\n");
+    
+    return VOS_OK;
+}  
+
 #endif
 
 #ifdef FRU_APP
+
+int drv_board_type()
+{
+    uint32 value = devmem_read(0x43c30000, AT_WORD);
+    if ( (value & 0x01000000) == 0x01000000)
+        return 2; //rhub
+    return 1; //rru
+}
+
+int fru_set_sn(int argc, char **argv)
+{
+    int ret;
+    int buf_len;
+    char buffer[128];
+    int fru_id;
+    FRU_EEPROM_INFO info;
+
+    if (argc < 2) {
+        vos_print("Usage: <%s> <fru-id> \r\n", argv[0]);
+        return VOS_OK;
+    }
+
+    fru_id = atoi(argv[1]);
+    ret = drv_get_eeprom_info(fru_id, &info);
+    if (ret != VOS_OK) {
+        vos_print("invalid fru-id %d \r\n", fru_id);
+        return VOS_ERR;
+    }
+
+    vos_print("Step <1> Input board part number: ");
+    fgets(buffer, sizeof(buffer), stdin);
+    buf_len = strlen(buffer);
+    if (buf_len > 0) buffer[buf_len - 1] = 0;
+    //vos_print("\r\n fgets: %d, %s \r\n", strlen(buffer), buffer);
+
+    buf_len = strlen(fru_board_info[fru_id].board_part_num);
+    if (buf_len > 20) buf_len = 20;
+    if (memcmp(buffer, fru_board_info[fru_id].board_part_num, buf_len) ) {
+        vos_print("\r\n Part Number Mismatch, Board Part Number is %s \r\n", fru_board_info[fru_id].board_part_num);
+        return VOS_OK;
+    }
+
+    vos_print("Step <2> Input board serial number: ");
+    fgets(buffer, sizeof(buffer), stdin);
+    buf_len = strlen(buffer);
+    if (buf_len > 0) buffer[buf_len - 1] = 0;
+    //vos_print("\r\n fgets: %d, %s \r\n", strlen(buffer), buffer);
+
+    if (strlen(buffer) > 20) {
+        vos_print("\r\n serial number too long \r\n");
+        return VOS_OK;
+    }
+
+    vos_print("Step <3> Save board serial num ... ");
+    ret = devm_fru_set_sn(TRUE, fru_id, buffer, strlen(buffer));
+    if (ret != VOS_OK) vos_print("Failed \r\n");
+    else vos_print("OK \r\n");
+    
+    return VOS_OK;
+}  
+
 /*
 ## copy file
 devm_fru.c cJSON.c drv_i2c.c
@@ -977,30 +1230,37 @@ int main(int argc, char **argv)
 {
     if (argc < 2) {
         vos_print("Usage:\r\n");
-        vos_print("  fru_get            -- show fru info \r\n");
-        vos_print("  fru_load           -- load json fru \r\n");
-        vos_print("  fru_set_mac        -- set fru mac addr \r\n");
-        vos_print("  fru_set_rf_cal     -- set RF calibration param \r\n");
-        vos_print("  fru_set_sku        -- set fru SKU ID \r\n");
-        vos_print("  fru_set_uuid       -- set fru UUID \r\n");
+        vos_print("  show           -- show fru info \r\n");
+        vos_print("  load           -- load json fru \r\n");
+        vos_print("  set_mac        -- set board mac addr \r\n");
+        vos_print("  set_rf_cal     -- set RF calibration param \r\n");
+        vos_print("  set_sku        -- set board SKU ID \r\n");
+        vos_print("  set_uuid       -- set board UUID \r\n");
+        vos_print("  set_sn         -- set board serial number \r\n");
         return VOS_OK;
     }
 
-    devm_read_fru_info(0);
-    devm_read_fru_info(1);
+    if (drv_board_type() == 1) { //RRU
+        devm_read_fru_info(0);
+        devm_read_fru_info(1);
+    } else { //RHUB
+        devm_read_fru_info(0);
+    }
 
-    if (!strcmp(argv[1], "fru_get")) 
+    if (!strcmp(argv[1], "show")) 
         cli_show_fru_info(argc - 1, &argv[1]);
-    else if (!strcmp(argv[1], "fru_load")) 
+    else if (!strcmp(argv[1], "load")) 
         cli_fru_load_json(argc - 1, &argv[1]);
-    else if (!strcmp(argv[1], "fru_set_mac")) 
+    else if (!strcmp(argv[1], "set_mac")) 
         cli_fru_set_mac(argc - 1, &argv[1]);
-    else if (!strcmp(argv[1], "fru_set_rf_cal")) 
+    else if (!strcmp(argv[1], "set_rf_cal")) 
         cli_fru_set_rf_calibration(argc - 1, &argv[1]);
-    else if (!strcmp(argv[1], "fru_set_sku")) 
+    else if (!strcmp(argv[1], "set_sku")) 
         cli_fru_set_skuid(argc - 1, &argv[1]);
-    else if (!strcmp(argv[1], "fru_set_uuid")) 
+    else if (!strcmp(argv[1], "set_uuid")) 
         cli_fru_set_uuid(argc - 1, &argv[1]);
+    else if (!strcmp(argv[1], "set_sn")) 
+        fru_set_sn(argc - 1, &argv[1]);
     else 
         vos_print("unknown cmd \r\n");
 

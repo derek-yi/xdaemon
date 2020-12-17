@@ -15,24 +15,12 @@
 #include <signal.h>
 #include <arpa/inet.h> 
 
-#ifndef APP_TEST
-#include "daemon_pub.h"
-#endif
+#include "vos.h"
 #include "tiny_cli.h"
 
-
-#ifdef APP_TEST
-
-#define INCLUDE_CONSOLE
-#define INCLUDE_TELNETD
-
-typedef unsigned int uint32;
-
-#define TRUE        1
-#define FALSE       0
-
+#ifdef DAEMON_RELEASE
+#define CLI_PWD_CHECK
 #endif
-
 
 typedef struct CMD_NODE
 {
@@ -45,8 +33,6 @@ typedef struct CMD_NODE
 
 #define CMD_BUFF_MAX            1024
 
-#define CHECK_AMBIGUOUS
-
 char    cli_cmd_buff[CMD_BUFF_MAX];
 uint32  cli_cmd_ptr = 0;
 int     telnet_fd = -1;
@@ -57,9 +43,19 @@ uint32     pwd_check_ok = FALSE;
 sem_t print_sem; //sem for print_buff
 char print_buff[8192];
 
-int cli_telnet_active()
+CLI_OUT_CB cli_out = NULL;
+void *cb_cookie = NULL;
+
+int cli_telnet_active(void)
 {
     return telnet_fd >= 0;
+}
+
+int cli_set_output_cb(CLI_OUT_CB cb, void *cookie)
+{
+    cli_out = cb;
+    cb_cookie = cookie;
+    return CMD_OK;
 }
 
 int vos_print(const char * format,...)
@@ -78,7 +74,9 @@ int vos_print(const char * format,...)
     len = vsnprintf(print_buff, 8192, format, args);
     va_end(args);
 
-    if ( cli_telnet_active() ) {
+    if (cli_out != NULL) {
+        cli_out(cb_cookie, print_buff);
+    } else if ( cli_telnet_active() ) {
         write(telnet_fd, print_buff, len);
     } else {
         printf("%s", print_buff);
@@ -144,7 +142,7 @@ void cli_show_match_cmd(char *cmd_buf, uint32 key_len)
     pNode = gst_cmd_list;
     while (pNode != NULL)
     {
-        if(strncmp(pNode->cmd_str, cmd_buf, key_len) == 0)
+        if(strncasecmp(pNode->cmd_str, cmd_buf, key_len) == 0)
         {
             vos_print("%-24s -- %-45s \r\n", pNode->cmd_str, pNode->help_str);
         }
@@ -215,7 +213,7 @@ int cli_cmd_exec(char *buff)
     pNode = gst_cmd_list;
     while (pNode != NULL)
     {
-        if(strncmp(pNode->cmd_str, buff, cmd_key_len) == 0)
+        if(strncasecmp(pNode->cmd_str, buff, cmd_key_len) == 0)
         {
             break;
         }
@@ -224,8 +222,8 @@ int cli_cmd_exec(char *buff)
 
 #ifdef CLI_PWD_CHECK
     if (pwd_check_ok != TRUE) {
-        if ( (strncmp("passwd", buff, 6) != 0)  &&
-             (strncmp("quit", buff, 4) != 0) ){
+        if ( (strncasecmp("passwd", buff, 6) != 0)  &&
+             (strncasecmp("quit", buff, 4) != 0) ){
             vos_print("input 'passwd' to verify password, or input 'quit' to exit \r\n");
             return CMD_OK; 
         }
@@ -250,7 +248,7 @@ int cli_cmd_exec(char *buff)
         iNode = pNode->pNext;
         while(iNode != NULL)
         {
-            if(memcmp(iNode->cmd_str, buff, cmd_key_len) == 0)
+            if(strncasecmp(iNode->cmd_str, buff, cmd_key_len) == 0)
             {
                 break;
             }
@@ -382,7 +380,9 @@ void cli_cmd_init(void)
     cli_cmd_reg("help",         "cmd help",             &cli_do_help);
     //cli_cmd_reg("version",      "show version",         &cli_do_show_version);
     cli_cmd_reg("cmdtest",      "cmd param test",       &cli_do_param_test);
+#ifdef CLI_PWD_CHECK    
     cli_cmd_reg("passwd",       "password verify",      &cli_do_passwd_verify);
+#endif
 }
 
 int cli_do_spec_char(char c)
@@ -463,7 +463,12 @@ void cli_telnet_task(int fd)
         return ;
     }
 
+#ifdef CLI_PWD_CHECK
     pwd_check_ok = FALSE;
+#else
+    pwd_check_ok = TRUE;
+#endif
+
     telnet_fd = fd;
     cli_prompt();
     while(1)    

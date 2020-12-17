@@ -2,58 +2,6 @@
 #ifndef _DEV_FRU_H_
 #define _DEV_FRU_H_
 
-/*************************************************************************
- * FRU_APP
- *************************************************************************/
-#ifdef FRU_APP
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <time.h>
-
-#ifndef uint8
-typedef unsigned char uint8;
-#endif
-
-#ifndef uint16
-typedef unsigned short uint16;
-#endif
-
-#ifndef uint32
-typedef unsigned int uint32;
-#endif
-
-#define VOS_OK      0
-#define VOS_ERR     (-1)
-
-#ifndef TRUE
-#define TRUE        1
-#endif
-#ifndef FALSE
-#define FALSE       0
-#endif
-
-#ifndef T_DESC
-#define T_DESC(x, y)   (y)
-#endif
-
-typedef struct 
-{
-    int     i2c_bus;
-    int     dev_id;
-    int     wr_blk_size;
-    int     rd_blk_size;
-    int     chip_size;
-}FRU_EEPROM_INFO;
-
-extern char* read_file(const char *filename);
-
-#endif //FRU_APP
-
 
 /*************************************************************************
  * fru data structure
@@ -151,5 +99,11 @@ typedef struct
 
 
 int devm_fru_get_uuid(char *uuid_str, int max);
+
+int devm_fru_get_skuid(uint8 *skuid);
+
+int devm_fru_get_rf_cal(uint8 offset, uint8 *value);
+
+int devm_fru_load_json(int fru_id, char *json_file);
 
 #endif

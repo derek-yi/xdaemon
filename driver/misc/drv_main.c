@@ -5,6 +5,7 @@
 #include "drv_cpu.h"
 #include "drv_main.h"
 #include "drv_fpga.h"
+#include "devm_main.h"
 
 #if T_DESC("drv_cmd", 1)
 
@@ -25,7 +26,7 @@ int cli_show_board_temp(int argc, char **argv)
 {
     int temp_val;
 
-    for(int i = 0; i < 4; i++) {
+    for(int i = 0; i < SYS_MAX_TEMP_ID; i++) {
         drv_get_board_temp(i, &temp_val);
         vos_print("Board temp[%d] is %d \r\n", i, temp_val);
     }
@@ -76,6 +77,7 @@ int cli_ad9544_write(int argc, char **argv)
     return 0;
 }
 
+#ifdef INCLUDE_AD9528
 int cli_ad9528_read(int argc, char **argv)
 {
     uint32 base_addr;
@@ -118,6 +120,7 @@ int cli_ad9528_write(int argc, char **argv)
 
     return 0;
 }
+#endif
 
 #ifdef INCLUDE_ADRV9009
 int cli_ad9009_read(int argc, char **argv)
@@ -162,7 +165,7 @@ int cli_devmem_read(int argc, char **argv)
     }
 
     for (int i = 0; i < rd_cnt; i++) {
-        uint32 value = devmem_read(base_addr + i*4, AT_WORD);
+        uint32 value = fpga_read(base_addr + i*4);
         vos_print("MEM_RD: [0x%08x] = 0x%x \r\n", base_addr + i*4, value);
     }
     
@@ -173,23 +176,17 @@ int cli_devmem_write(int argc, char **argv)
 {
     uint32 mem_addr;
     uint32 value, rd_value;
-    int access_type = AT_WORD;
 
     if (argc < 3) {
-        vos_print("usage: %s <addr> <value> [<b|h|w>] \r\n", argv[0]);
+        vos_print("usage: %s <addr> <value> \r\n", argv[0]);
         return 0;
     }
 
     mem_addr = (uint32)strtoul(argv[1], 0, 0);
     value    = (uint32)strtoul(argv[2], 0, 0);
-    if (argc > 3) {
-        if (argv[2][0] == 'b') access_type = AT_BYTE;
-        if (argv[2][0] == 'h') access_type = AT_SHORT;
-        if (argv[2][0] == 'w') access_type = AT_WORD;
-    }
     
-    devmem_write(mem_addr, access_type, value);
-    rd_value = devmem_read(mem_addr, access_type);
+    fpga_write(mem_addr, value);
+    rd_value = fpga_read(mem_addr);
     vos_print("MEM_WR: 0x%x -> [0x%08x], read 0x%x \r\n", value, mem_addr, rd_value);
     
     return 0;
@@ -250,11 +247,13 @@ int cli_drv_unit_test(int argc, char **argv)
     value = clk_ad9544_reg_read(0, 0x0c);
     UT_CHECK_VALUE(value, 0x56);
 
+#ifdef INCLUDE_AD9528
     value = clk_ad9528_reg_read(0, 0x508);
     UT_CHECK_VALUE(value, 0xEB);
 
     ret = drv_ad9528_pll_locked(0);
     UT_CHECK_VALUE(ret, VOS_OK);
+#endif
 
 #ifdef INCLUDE_ADRV9009
     value = adrv9009_reg_read(0, 0x200);
@@ -285,7 +284,7 @@ int cli_drv_unit_test(int argc, char **argv)
 //getversion
 int cli_show_version(int argc, char **argv)
 {
-    uint32 value = devmem_read(FPGA_VER_ADDRESS, AT_WORD);
+    uint32 value = fpga_read(FPGA_VER_ADDRESS);
     char buffer[256] = {0};
     int board_type = drv_board_type();
     
@@ -314,9 +313,19 @@ int cli_show_version(int argc, char **argv)
         vos_print("compile_date: %s\r\n", buffer);
         vos_print("\r\n");
     }
+
+    sys_node_readstr("/media/sw_version.txt", buffer, sizeof(buffer));
+    vos_print("MPLANE Version: %s\r\n", buffer);
+    vos_print("\r\n");
     
-    vos_print("Software Ver: 0x%x\r\n", DAEMON_VERSION);
-    vos_print("compile time: %s, %s\r\n", __DATE__, __TIME__);
+    pipe_read("git branch", buffer, sizeof(buffer));
+    if (strlen(buffer) > 0 ) vos_print("APP Branch: %s", buffer);
+    pipe_read("git log -1 | head -n 4 | grep commit", buffer, sizeof(buffer));
+    if (strlen(buffer) > 0 ) vos_print("%s", buffer);
+    pipe_read("git log -1 | head -n 4 | grep Date", buffer, sizeof(buffer));
+    if (strlen(buffer) > 0 ) vos_print("%s", buffer);
+    pipe_read("git log -1 | head -n 4 | grep Author", buffer, sizeof(buffer));
+    if (strlen(buffer) > 0 ) vos_print("%s", buffer);
     vos_print("===================================================\r\n");
     
     return CMD_OK;
@@ -347,11 +356,14 @@ void drv_cmd_reg()
 
     cli_cmd_reg("rd_ad9544",    "read ad9544 reg",      &cli_ad9544_read);
     cli_cmd_reg("wr_ad9544",    "write ad9544 reg",     &cli_ad9544_write);
+#ifdef INCLUDE_AD9528    
     cli_cmd_reg("rd_ad9528",    "read ad9528 reg",      &cli_ad9528_read);
     cli_cmd_reg("wr_ad9528",    "write ad9528 reg",     &cli_ad9528_write);
+#endif    
 #ifdef INCLUDE_ADRV9009    
     cli_cmd_reg("rd_ad9009",    "read ad9009 reg",      &cli_ad9009_read);
-#endif    
+#endif  
+
     cli_cmd_reg("rd_reg",       "read FPGA reg",        &cli_devmem_read);
     cli_cmd_reg("wr_reg",       "write FPGA reg",       &cli_devmem_write);
     cli_cmd_reg("rd_ram",       "read FPGA RAM",        &cli_devmem_read); //todo
@@ -474,14 +486,14 @@ int drv_fpga_script_init(cJSON* sub_tree)
                vos_msleep(p[0]);
             } else if (op_type == OPTYPE_READ) {
                 //p[0]-reg_addr, p[1]-value, p[2]-mask
-                ret = devmem_read(p[0], AT_WORD);
+                ret = fpga_read(p[0]);
                 if ( (ret&p[2]) != (p[1]&p[2]) ) {
                     xlog(XLOG_ERROR, "fpga read 0x%x fail, ret 0x%x, exp 0x%x", p[0], ret, p[1]);
                     return VOS_ERR;
                 }
             } else if (op_type == OPTYPE_WRITE) {
                 //p[0]-reg_addr, p[1]-value
-                ret = devmem_write(p[0], AT_WORD, p[1]);
+                ret = fpga_write(p[0], p[1]);
                 if ( ret != VOS_OK ) {
                     xlog(XLOG_ERROR, "fpga write 0x%x fail, ret 0x%x", p[0], ret);
                     return VOS_ERR;
@@ -533,54 +545,45 @@ int drv_load_script(char *file_name)
 
 #if T_DESC("drv_main", 1)
 
-
-int drv_task_enable = TRUE;
-int drv_peak_time = 0;
+TIMER_INFO_S drv_timer_list[] = 
+{ 
+    {0, cpri_link_monitor, NULL}, 
+};
 
 void* drv_main_task(void *param)  
 {
-    struct timeval t_start, t_end;
-    uint32 delay_ms;
+    TIMER_INFO_S *tc;
+    timer_t timer_id;
 
+    for (int i = 0; i < sizeof(drv_timer_list)/sizeof(TIMER_INFO_S); i++) {
+        tc = &drv_timer_list[i];
+        if ( (tc->interval > 0) && (tc->cb_func != NULL) ) {
+            if (vos_create_timer(&timer_id, tc->interval, tc->cb_func, tc->cookie) != VOS_OK)  {  
+                xlog(XLOG_ERROR, "vos_create_timer failed");
+                //return NULL;  
+            } 
+        }
+    }
+
+    //add irregular function in main loop
     while(1) {
-        if (drv_task_enable != TRUE) {
+        if (sys_conf_geti("drv_task_disable")) {
             vos_msleep(100);
             continue;
         }
-        gettimeofday(&t_start, NULL);
 
-        //todo
+        //do_sth
 
-        gettimeofday(&t_end, NULL);
-        delay_ms = (t_end.tv_sec - t_start.tv_sec)*1000000+(t_end.tv_usec - t_start.tv_usec);//us
-        delay_ms = delay_ms/1000; //ms
-        if (drv_peak_time < delay_ms) drv_peak_time = delay_ms;
         vos_msleep(500);
     }
     
     return NULL;
 }
 
-void drv_timer_callback(union sigval param)
-{
-    static uint32 loop_cnt = 0;
-    
-    if (drv_task_enable != TRUE) {
-        return ;
-    }
-    
-    // 定时器回调函数应该简单处理
-    //if (loop_cnt%3 == 0) cpri_state_monitor();
-    
-    loop_cnt++;
-}
-
-
 int drv_module_init(char *cfg_file)
 {
     int ret;
     pthread_t threadid;
-    timer_t timer_id;
 
     xlog(XLOG_INFO, "drv_module_init: %s", cfg_file);
     drv_load_script(cfg_file);
@@ -589,13 +592,7 @@ int drv_module_init(char *cfg_file)
     ret = pthread_create(&threadid, NULL, drv_main_task, NULL);  
     if (ret != 0)  {  
         xlog(XLOG_ERROR, "Error at %s:%d, pthread_create failed(%s)", __FILE__, __LINE__, strerror(errno));
-        return -1;  
-    } 
-
-    ret = vos_create_timer(&timer_id, 1, drv_timer_callback, NULL);
-    if (ret != 0)  {  
-        xlog(XLOG_ERROR, "Error at %s:%d, vos_create_timer failed(%s)", __FILE__, __LINE__, strerror(errno));
-        return -1;  
+        return VOS_ERR;  
     } 
 
     return VOS_OK;

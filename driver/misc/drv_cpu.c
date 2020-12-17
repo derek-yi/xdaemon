@@ -1,9 +1,18 @@
 
 
-#include "daemon_pub.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <sys/mman.h>
 
 #include "drv_cpu.h"
+#include "vos.h"
+
+
+static int dbg_mode = 0;
 
 #if T_DESC("devmem", 1)
 
@@ -30,13 +39,13 @@ unsigned long devmem_read(unsigned long mem_addr, int access_type)
     off_t target = (off_t)mem_addr;
 
     if (!devmem_addr_valid(mem_addr)) {
-        xlog(XLOG_ERROR, "Error at %s:%d, invalid addr 0x%lx", __FILE__, __LINE__, mem_addr);
+        if(dbg_mode) printf("Error at %s:%d, invalid addr 0x%lx", __FILE__, __LINE__, mem_addr);
         return 0;
     }
 
     if (memdev_fd < 0) {
         if ( (memdev_fd = open("/dev/mem", O_RDWR | O_SYNC)) == -1 ) {
-            xlog(XLOG_ERROR, "Error at %s:%d, open failed(%s)", __FILE__, __LINE__, strerror(errno));
+            if(dbg_mode) printf("Error at %s:%d, open failed(%s)", __FILE__, __LINE__, strerror(errno));
             return 0;
         }
     }
@@ -44,7 +53,7 @@ unsigned long devmem_read(unsigned long mem_addr, int access_type)
     /* Map one page */
     map_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, memdev_fd, target & ~MAP_MASK);
     if (map_base == (void *) -1) {
-        xlog(XLOG_ERROR, "Error at %s:%d, mmap failed(%s)", __FILE__, __LINE__, strerror(errno));
+        if(dbg_mode) printf("Error at %s:%d, mmap failed(%s)", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     
@@ -60,12 +69,12 @@ unsigned long devmem_read(unsigned long mem_addr, int access_type)
             read_result = *((unsigned long *) virt_addr);
             break;
         default:
-            xlog(XLOG_ERROR, "Error at %s:%d, access type %d", __FILE__, __LINE__, access_type);
+            if(dbg_mode) printf("Error at %s:%d, access type %d", __FILE__, __LINE__, access_type);
             return 0; 
     }
 
     if (munmap(map_base, MAP_SIZE) == -1) {
-        xlog(XLOG_ERROR, "Error at %s:%d, munmap failed(%s)", __FILE__, __LINE__, strerror(errno));
+        if(dbg_mode) printf("Error at %s:%d, munmap failed(%s)", __FILE__, __LINE__, strerror(errno));
     }
 
     return read_result;
@@ -85,7 +94,7 @@ unsigned long devmem_write(unsigned long mem_addr, int access_type, unsigned lon
 
     if (memdev_fd < 0) {
         if ( (memdev_fd = open("/dev/mem", O_RDWR | O_SYNC)) == -1 )  {
-            xlog(XLOG_ERROR, "Error at %s:%d, open failed(%s)", __FILE__, __LINE__, strerror(errno));
+            if(dbg_mode) printf("Error at %s:%d, open failed(%s)", __FILE__, __LINE__, strerror(errno));
             return 0;
         }
     }
@@ -93,7 +102,7 @@ unsigned long devmem_write(unsigned long mem_addr, int access_type, unsigned lon
     /* Map one page */
     map_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, memdev_fd, target & ~MAP_MASK);
     if(map_base == (void *) -1) {
-        xlog(XLOG_ERROR, "Error at %s:%d, mmap failed(%s)", __FILE__, __LINE__, strerror(errno));
+        if(dbg_mode) printf("Error at %s:%d, mmap failed(%s)", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     
@@ -115,7 +124,7 @@ unsigned long devmem_write(unsigned long mem_addr, int access_type, unsigned lon
     //printf("Written 0x%lu; readback 0x%lu\n", writeval, read_result);
 
     if (munmap(map_base, MAP_SIZE) == -1)  {
-        xlog(XLOG_ERROR, "Error at %s:%d, munmap failed(%s)", __FILE__, __LINE__, strerror(errno));
+        if(dbg_mode) printf("Error at %s:%d, munmap failed(%s)", __FILE__, __LINE__, strerror(errno));
     }
 
     return 0;
@@ -123,40 +132,6 @@ unsigned long devmem_write(unsigned long mem_addr, int access_type, unsigned lon
 
 
 #endif
-
-
-#if T_DESC("cpu_temp", 1)
-
-/*
-function CPU_TEMPERATURE()
-{
-    tmp=`devmem 0x43ca0200`
-    tmp=$(($tmp >> 4))
-    tmp=`echo "scale=0; ($tmp*503.975/4096 - 273.15)/1" | bc`
-    echo $tmp > /tmp/cpu_temperature.txt
-}
-*/
-/*************************************************************************
- * 获取cpu温度
- *************************************************************************/
-int drv_get_cpu_temp(int *temp)
-{
-    int cpu_temp;
-    float float_tmp;
-
-    if (temp == NULL) return VOS_ERR;
-    
-    cpu_temp = devmem_read(0x43ca0200, 4);
-    cpu_temp = devmem_read(0x43ca0200, 4); //repeat
-    float_tmp = (float)(cpu_temp >> 4);
-    float_tmp = (float_tmp*503.975/4096 - 273.15);
-    *temp = (int)float_tmp;
-    
-    return VOS_OK;
-}
-
-#endif
-
 
 #if T_DESC("cpu_occupy", 1)
 

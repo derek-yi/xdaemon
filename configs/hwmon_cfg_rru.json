@@ -8,14 +8,14 @@
 			"interval": 10,
 			"repeat": 3,
 			"//param": "top_limit",
-			"param": [20]
+			"param": [90]
 		},
 		"mem.occupy": {
 			"function": "check_mem_occupy",
 			"interval": 10,
 			"repeat": 3,
 			"//param": "top_limit",
-			"param": [20]
+			"param": [90]
 		},
 		"cpu.temp": {
 			"function": "check_cpu_temp",
@@ -35,13 +35,6 @@
 			"repeat": 3,
 			"//param": "chipid limit",
 			"param": [0, 30000]
-		},
-		"fan.speed1": {
-			"function": "fan_speed_check",
-			"interval": 10,
-			"repeat": 3,
-			"//param": "fanid limit",
-			"param": [0, 50]
 		},
 		"fpga.reg.check1": {
 			"function": "fpga_reg_check",
@@ -85,3 +78,4 @@
 		}
     }
 }
+

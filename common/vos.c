@@ -1,5 +1,17 @@
 
-#include "daemon_pub.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <time.h>   //timer_t
+#include <signal.h>
+#include <sys/time.h>
+
+#include "vos.h"
+
 
 int pipe_read(char *cmd_str, char *buff, int buf_len)
 {
@@ -109,8 +121,19 @@ union sigval {
     int sival_int;
     void *sival_ptr;
 };
+struct sigevent {
+      int    sigev_notify; 
+      int    sigev_signo;  
+      union sigval sigev_value;
+      void (*sigev_notify_function) (union sigval);
+      void  *sigev_notify_attributes;
+      pid_t  sigev_notify_thread_id;
+  };
 */
-int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, void *param)
+
+typedef void (* lib_callback)(union sigval);
+
+int vos_create_timer(timer_t *ret_tid, int interval, timer_cb callback, void *param)
 {
 	timer_t timerid;
 	struct sigevent evp;
@@ -118,7 +141,7 @@ int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, vo
 	memset(&evp, 0, sizeof(struct sigevent));
 	evp.sigev_value.sival_ptr = param; 
 	evp.sigev_notify = SIGEV_THREAD;
-	evp.sigev_notify_function = callback;
+	evp.sigev_notify_function = (lib_callback)callback;
 	if (timer_create(CLOCK_REALTIME, &evp, &timerid) == -1) {
         vos_print("timer_create failed(%s)\n", strerror(errno));
 		return 1;

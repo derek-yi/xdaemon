@@ -2,6 +2,7 @@
 
 #include "daemon_pub.h"
 
+#include "devm_main.h"
 #include "hwmon_main.h"
 #include "hwmon_msg.h"
 #include "devm_msg.h"
@@ -10,8 +11,6 @@
 #define HWMON_MAX_NODE      256
 
 CHK_NODE_INFO_S hwmon_list[HWMON_MAX_NODE];
-
-int check_task_enable = TRUE;
 
 int peak_check_time = 0;
 
@@ -231,9 +230,9 @@ int hwmon_policy_update()
 int hwmon_enable_task(int enable)
 {
     if (enable) {
-        check_task_enable = TRUE;
-    } else if (check_task_enable == TRUE) {
-        check_task_enable = FALSE;
+        sys_conf_set("hwmon_disable", "0");
+    } else {
+        sys_conf_set("hwmon_disable", "1");
         vos_msleep(1000); //wait task goto sleep
     } 
     
@@ -243,7 +242,7 @@ int hwmon_enable_task(int enable)
 /*************************************************************************
  * 发送检测消息给MP
  *************************************************************************/
-int hwmon_send_msg(int node_id, char *node_desc, int fault_state)
+int hwmon_send_msg(int node_id, char *node_desc, int fault_state, int fault_src)
 {
     int ret;
     DEVM_MSG_S tx_msg;
@@ -256,6 +255,7 @@ int hwmon_send_msg(int node_id, char *node_desc, int fault_state)
     snprintf(msg_data->node_desc, DESC_MAX_LEN, "%s", node_desc);
     msg_data->node_id = node_id;
     msg_data->fault_state = fault_state;
+    msg_data->fault_src = fault_src;
 
  #ifdef __ARM_ARCH //上板调试    
     ret = devm_send_msg(APP_ORAN_MP, &tx_msg, NULL);
@@ -354,7 +354,8 @@ int cli_show_hwmon_list(int argc, char **argv)
 
 int cli_show_hwmon_history(int argc, char **argv)
 {
-    xlog_print_file(XLOG_HWMON);
+    // see /root/app/libzlog/zlog.conf
+    xlog_print_file("zlog.hwmon.log");
     return VOS_OK;
 }
 
@@ -471,10 +472,10 @@ timer_t hwmon_chk_timer;
 /*************************************************************************
  * 定时器回调，检测各检测点是否超时
  *************************************************************************/
-void hwmon_timer_callback(union sigval param)
+int hwmon_timer_callback(void *param)
 {
-    if (check_task_enable != TRUE) {
-        return ;
+    if (sys_conf_geti("hwmon_disable")) {
+        return VOS_OK;
     }
     
     // 定时器回调函数应该简单处理
@@ -486,6 +487,8 @@ void hwmon_timer_callback(union sigval param)
             }
         }
     }
+    
+    return VOS_OK;
 }
 
 /*************************************************************************
@@ -497,7 +500,7 @@ void* hwmon_check_task(void *param)
     int t_used = 0;
 
     while(1) {
-        if (check_task_enable != TRUE) {
+        if (sys_conf_geti("hwmon_disable")) {
             vos_msleep(100);
             continue;
         }

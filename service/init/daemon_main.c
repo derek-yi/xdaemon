@@ -20,13 +20,59 @@ char *sys_conf_get(char *key_str)
 
     p = sys_conf.dyn_cfg;
     while (p != NULL) {
-        if( !strcmp(key_str, p->cfg_str) ) {
+        if ( !strcmp(key_str, p->cfg_str) ) {
             return p->cfg_val;
         }
         p = p->next;
     }
     
     return NULL;
+}
+
+int sys_conf_geti(char *key_str)
+{
+    DYN_CFG_S *p;
+
+    if (key_str == NULL) return 0;
+
+    p = sys_conf.dyn_cfg;
+    while (p != NULL) {
+        if ( !strcmp(key_str, p->cfg_str) ) {
+            return strtol(p->cfg_val, NULL, 0);
+        }
+        p = p->next;
+    }
+    
+    return 0;
+}
+
+int sys_conf_set(char *key_str, char *key_val)
+{
+    DYN_CFG_S *p;
+
+    if (key_str == NULL) return VOS_ERR;
+
+    p = sys_conf.dyn_cfg;
+    while (p != NULL) {
+        if( !strcmp(key_str, p->cfg_str) ) {
+            if (p->cfg_val) free(p->cfg_val);
+            p->cfg_val = strdup(key_val);
+            return VOS_OK;
+        }
+        p = p->next;
+    }
+
+    p = (DYN_CFG_S *)malloc(sizeof(DYN_CFG_S));
+    if (p == NULL) {
+        return VOS_ERR;
+    }
+    
+    p->cfg_str = strdup(key_str);
+    p->cfg_val = strdup(key_val);
+    p->next = sys_conf.dyn_cfg;
+    sys_conf.dyn_cfg = p;
+    
+    return VOS_OK;
 }
 
 int daemon_load_script(char *file_name)
@@ -50,6 +96,7 @@ int daemon_load_script(char *file_name)
 	}
 
     memset((char *)&sys_conf, 0, sizeof(sys_conf));
+    sys_conf.top_conf = strdup(file_name);
 	ent_list = cJSON_GetObjectItem(root_tree, "fix.config");
 	if (ent_list == NULL) {
 		xlog(XLOG_ERROR, "parse json file fail");
@@ -68,10 +115,6 @@ int daemon_load_script(char *file_name)
             sys_conf.devm_conf = strdup(tmp_node->valuestring);
         else if ( !strcmp(tmp_node->string, "upcfg.conf") ) 
             sys_conf.upcfg_conf = strdup(tmp_node->valuestring);
-        else if ( !strcmp(tmp_node->string, "max_fru") ) 
-            sys_conf.MAX_FRUID = tmp_node->valueint;
-        else if ( !strcmp(tmp_node->string, "max_rf_chip") ) 
-            sys_conf.MAX_RF_CHIP = tmp_node->valueint;
         else if ( !strcmp(tmp_node->string, "uds.file") ) 
             sys_conf.uds_file = strdup(tmp_node->valuestring);
         else if ( !strcmp(tmp_node->string, "xlog.path") ) 
@@ -92,6 +135,7 @@ int daemon_load_script(char *file_name)
 	for (i = 0; i < list_cnt; ++i) {
 		cJSON* tmp_node = cJSON_GetArrayItem(ent_list, i);
         DYN_CFG_S *dyn_cfg;
+        char num_str[64];
 
         dyn_cfg = (DYN_CFG_S *)malloc(sizeof(DYN_CFG_S));
         if (dyn_cfg == NULL) {
@@ -100,7 +144,12 @@ int daemon_load_script(char *file_name)
         }
         
         dyn_cfg->cfg_str = strdup(tmp_node->string);
-        dyn_cfg->cfg_val = strdup(tmp_node->valuestring);
+        if (tmp_node->valuestring) {
+            dyn_cfg->cfg_val = strdup(tmp_node->valuestring);
+        } else {
+            sprintf(num_str, "%d", tmp_node->valueint);
+            dyn_cfg->cfg_val = strdup(num_str);
+        }
         dyn_cfg->next = sys_conf.dyn_cfg;
         sys_conf.dyn_cfg = dyn_cfg;
 	}
@@ -136,20 +185,21 @@ int daemon_module_init()
 
     ret = devm_init(sys_conf.devm_conf);
     if (ret != 0)  {  
-        xlog(XLOG_ERROR, "hwmon_init failed!\n");  
+        xlog(XLOG_ERROR, "devm_init failed!\n");  
         return -1;  
     } 
 
     ret = upcfg_init(sys_conf.upcfg_conf);
     if (ret != 0)  {  
-        xlog(XLOG_ERROR, "hwmon_init failed!\n");  
+        xlog(XLOG_ERROR, "upcfg_init failed!\n");  
         return -1;  
     } 
 
     return 0;
 }
 
-/* 该函数用于处理进程退出不会被释放的资源 //todo
+/* 该函数用于处理进程退出不会被释放的资源 
+ * todo
  */
 void daemon_module_exit()
 {
@@ -202,6 +252,7 @@ int main(int argc, char **argv)
         return VOS_ERR;
     }
 
+    xlog_desc_init();
     xlog(XLOG_INFO, "starting %s ...", argv[0]);
     if (argc > 1) cfg_file = argv[1];
     if (daemon_load_script(cfg_file) != VOS_OK) {
