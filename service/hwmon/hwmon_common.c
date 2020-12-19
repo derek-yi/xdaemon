@@ -99,7 +99,7 @@ int check_cpu_temp(void *self, void *cookie)
         return VOS_ERR;
     }
 
-    xlog(XLOG_INFO, "cpu temp: value is %d", cpu_temp);
+    //xlog(XLOG_INFO, "cpu temp: value is %d", cpu_temp);
     if ( cpu_temp > temp_limit2 ) {
         if (node->fault_state != CRITICAL) {
             mlog(XLOG_WARN, "cpu temp warning, current temp %d", cpu_temp);
@@ -199,7 +199,7 @@ int ina2xx_reg_check(void *self, void *cookie)
         return VOS_ERR;
     }
 
-    xlog(XLOG_INFO, "power sensor: power[%d] is %d", chip_id, power_value);
+    //xlog(XLOG_INFO, "power sensor: power[%d] is %d", chip_id, power_value);
     if ( power_value < power_limit ) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {

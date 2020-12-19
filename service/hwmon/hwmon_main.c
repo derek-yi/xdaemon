@@ -1,5 +1,3 @@
-
-
 #include "daemon_pub.h"
 
 #include "devm_main.h"
@@ -269,7 +267,6 @@ int hwmon_send_msg(int node_id, char *node_desc, int fault_state, int fault_src)
     return ret;
 }
 
-
 #if T_DESC("hwmon_cmd", 1)
 
 static cJSON *parse_file(const char *filename)
@@ -468,17 +465,18 @@ pthread_t hwmon_chk_tid;
 
 timer_t hwmon_chk_timer;
 
-
 /*************************************************************************
  * 定时器回调，检测各检测点是否超时
  *************************************************************************/
 int hwmon_timer_callback(void *param)
 {
+    static uint32 timer_cnt = 0;
+
     if (sys_conf_geti("hwmon_disable")) {
         return VOS_OK;
     }
     
-    // 定时器回调函数应该简单处理
+    timer_cnt++;
     for (int i = 0; i < HWMON_MAX_NODE; i++) {
         if (hwmon_list[i].enable) {
             if (hwmon_list[i].interval_cmp++ >= hwmon_list[i].base_cfg.interval) {
@@ -486,6 +484,10 @@ int hwmon_timer_callback(void *param)
                 hwmon_list[i].check_status = CHK_STATUS_READY;
             }
         }
+    }
+
+    if (timer_cnt%5 == 0) {
+        hwmon_policy_update();
     }
     
     return VOS_OK;
@@ -517,8 +519,6 @@ void* hwmon_check_task(void *param)
             }
         }
 
-        hwmon_policy_update();
-        
         gettimeofday(&t_end, NULL);
         t_used = (t_end.tv_sec - t_start.tv_sec)*1000000+(t_end.tv_usec - t_start.tv_usec);//us
         t_used = t_used/1000; //ms
@@ -542,6 +542,7 @@ int hwmon_init(char *cfg_file)
     
     //override check node
     hwmon_config_override();
+    hwmon_cmd_reg();
 
 #ifndef DAEMON_RELEASE 
     devm_set_msg_func(MSG_TYPE_HWMON,   hwmon_msg_proc);
@@ -562,7 +563,6 @@ int hwmon_init(char *cfg_file)
         return -1;  
     } 
 
-    hwmon_cmd_reg();
     return 0;    
 }
 

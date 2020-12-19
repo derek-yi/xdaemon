@@ -18,9 +18,18 @@
 #include "vos.h"
 #include "tiny_cli.h"
 
+#ifndef APP_TEST
+#include "xlog.h"
+#endif
+
 #ifdef DAEMON_RELEASE
 #define CLI_PWD_CHECK
 #endif
+
+#define KEY_UP          "\033[A"
+#define KEY_DOWN        "\033[B"
+#define KEY_RIGHT       "\033[C"
+#define KEY_LEFT        "\033[D"
 
 typedef struct CMD_NODE
 {
@@ -264,6 +273,10 @@ int cli_cmd_exec(char *buff)
     }
 #endif    
 
+#ifndef APP_TEST
+    xlog(XLOG_INFO, "CMD: %s", buff);
+#endif
+
     // exec
     argc = cli_param_format(buff, argv, 32);
     rc = (pNode->cmd_func)(argc, argv);
@@ -395,6 +408,27 @@ int cli_do_spec_char(char c)
             vos_print("\b");
             return TRUE;
         }
+    }
+    
+    return FALSE;   //not special char
+}
+
+int cli_do_arrow_char(char *buff)
+{
+    if (!memcmp(buff, KEY_UP, strlen(KEY_UP))) {
+        vos_print("recv KEY_UP\n");
+        return TRUE;
+    } else if (!memcmp(buff, KEY_DOWN, strlen(KEY_DOWN))) {
+        vos_print("recv KEY_DOWN\n");
+        return TRUE;
+    } else if (!memcmp(buff, KEY_RIGHT, strlen(KEY_RIGHT))) {
+        vos_print("recv KEY_RIGHT\n");
+        return TRUE;
+    } else if (!memcmp(buff, KEY_LEFT, strlen(KEY_LEFT))) {
+        vos_print("recv KEY_LEFT\n");
+        return TRUE;
+    } else if (buff[0] == '\033') {
+        return TRUE;
     }
     
     return FALSE;   //not special char

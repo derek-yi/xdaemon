@@ -9,15 +9,15 @@
 #include <time.h>
 
 #ifdef FRU_APP
-#include "cJSON.h"
-#include "drv_cpu.h"
 #include "vos.h"
+#include "cJSON.h"
 #else
 #include "daemon_pub.h"
+#include "devm_main.h"
 #include "drv_main.h"
 #endif
 
-#include "devm_main.h"
+#include "drv_cpu.h"
 #include "drv_i2c.h"
 #include "devm_fru.h" 
 
@@ -33,24 +33,18 @@ typedef struct
 {
     int     i2c_bus;
     int     dev_id;
-    int     wr_blk_size;
-    int     rd_blk_size;
     int     chip_size;
-}FRU_EEPROM_INFO;
+}EEPROM_INFO;
 
-int drv_get_eeprom_info(int fru_id, FRU_EEPROM_INFO *info)
+int drv_get_eeprom_info(int chip_id, EEPROM_INFO *info)
 {
-    if (fru_id == 1) {
+    if (chip_id == 1) {
         info->i2c_bus       = 6;
         info->dev_id        = 0x50;
-        info->wr_blk_size   = 16;
-        info->rd_blk_size   = 32;
         info->chip_size     = 256;
-    } else if (fru_id == 0) {
+    } else if (chip_id == 0) {
         info->i2c_bus       = 3;
         info->dev_id        = 0x54;
-        info->wr_blk_size   = 16;
-        info->rd_blk_size   = 32;
         info->chip_size     = 1024;
     } else {
         return VOS_ERR;
@@ -105,7 +99,7 @@ int parse_hex_string(char *hexStr, int max, uint8 *pData)
 int devm_load_area_data(int fru_id, int start, char *area_data, uint32 area_len)
 {
     int i, ret;
-    FRU_EEPROM_INFO info;
+    EEPROM_INFO info;
     
     ret = drv_get_eeprom_info(fru_id, &info);
     if (ret != VOS_OK) {
@@ -129,7 +123,7 @@ int devm_load_area_data(int fru_id, int start, char *area_data, uint32 area_len)
 int devm_store_area_data(int fru_id, int start, uint8 *area_data, uint32 area_len)
 {
     int i, ret;
-    FRU_EEPROM_INFO info;
+    EEPROM_INFO info;
     
     ret = drv_get_eeprom_info(fru_id, &info);
     if (ret != VOS_OK) {
@@ -1006,7 +1000,7 @@ int fru_info_test()
 int cli_show_fru_info(int argc, char **argv)
 {
     int ret;
-    FRU_EEPROM_INFO info;
+    EEPROM_INFO info;
     int fru_id;
 
     if (argc < 2) {
@@ -1099,7 +1093,7 @@ int cli_fru_load_json(int argc, char **argv)
 {
     int ret;
     int fru_id;
-    FRU_EEPROM_INFO info;
+    EEPROM_INFO info;
     
     if (argc < 3) {
         vos_print("Usage: <%s> <fru-id> <jsonfile>\r\n", argv[0]);
@@ -1126,7 +1120,7 @@ int cli_fru_set_sn(int argc, char **argv)
 {
     int ret;
     int fru_id;
-    FRU_EEPROM_INFO info;
+    EEPROM_INFO info;
 
     if (argc < 3) {
         vos_print("Usage: <%s> <fru-id> <sn-str>\r\n", argv[0]);
@@ -1171,7 +1165,7 @@ int fru_set_sn(int argc, char **argv)
     int buf_len;
     char buffer[128];
     int fru_id;
-    FRU_EEPROM_INFO info;
+    EEPROM_INFO info;
 
     if (argc < 2) {
         vos_print("Usage: <%s> <fru-id> \r\n", argv[0]);

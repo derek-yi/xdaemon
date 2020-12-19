@@ -1,5 +1,3 @@
-
-
 #include "daemon_pub.h"
 
 #include "drv_cpu.h"
@@ -192,96 +190,6 @@ int cli_devmem_write(int argc, char **argv)
     return 0;
 }
 
-int cli_drv_unit_test(int argc, char **argv)
-{
-    int ret;
-    int value;
-
-    ret = drv_get_cpu_usage(&value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_get_mem_usage(&value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_get_cpu_temp(&value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_get_board_temp(0, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_get_board_temp(1, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_get_board_temp(2, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_get_board_temp(3, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_power_sensor_get(0, 0, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    if (value == 0) vos_print("%d: failed \r\n", __LINE__);
-
-    ret = drv_fan_get_speed(0, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    UT_CHECK_VALUE(value, 0); //todo
-
-    value = devmem_read(0x85000010, AT_WORD);
-    UT_CHECK_VALUE(value, 0x28);
-
-#if xxx
-    value = clk_9FGV100X_reg_read(0, 0x0c);
-    UT_CHECK_VALUE(value, 0x56);
-#endif
-
-    ret = drv_ad9544_pll_locked(0);
-    UT_CHECK_VALUE(ret, VOS_OK);
-
-    value = clk_ad9544_reg_read(0, 0x0c);
-    UT_CHECK_VALUE(value, 0x56);
-
-#ifdef INCLUDE_AD9528
-    value = clk_ad9528_reg_read(0, 0x508);
-    UT_CHECK_VALUE(value, 0xEB);
-
-    ret = drv_ad9528_pll_locked(0);
-    UT_CHECK_VALUE(ret, VOS_OK);
-#endif
-
-#ifdef INCLUDE_ADRV9009
-    value = adrv9009_reg_read(0, 0x200);
-    UT_CHECK_VALUE(value, 0x14);
-
-    ret = adrv9009_pll_locked(0);
-    UT_CHECK_VALUE(ret, VOS_OK);
-
-    ret = adrv9009_pll_locked(1);
-    UT_CHECK_VALUE(ret, VOS_OK);
-#endif    
-
-#ifdef INCLUDE_UBLOX_GNSS
-    ret = drv_gnss_is_locked();
-    UT_CHECK_VALUE(ret, VOS_OK);
-#endif
-
-    char *sysfs_node = "/sys/kernel/debug/iio/iio:device2/direct_reg_access";
-    ret = sys_node_write(sysfs_node, 0x200);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    ret = sys_node_read(sysfs_node, &value);
-    UT_CHECK_VALUE(ret, VOS_OK);
-    UT_CHECK_VALUE(value, 0x14);
-
-    return 0;
-}
-
-//getversion
 int cli_show_version(int argc, char **argv)
 {
     uint32 value = fpga_read(FPGA_VER_ADDRESS);
@@ -315,17 +223,17 @@ int cli_show_version(int argc, char **argv)
     }
 
     sys_node_readstr("/media/sw_version.txt", buffer, sizeof(buffer));
-    vos_print("MPLANE Version: %s\r\n", buffer);
+    vos_print("MPLANE Version: %s\r", buffer);
     vos_print("\r\n");
     
     pipe_read("git branch", buffer, sizeof(buffer));
-    if (strlen(buffer) > 0 ) vos_print("APP Branch: %s", buffer);
+    if (strlen(buffer) > 0 ) vos_print("APP Branch: %s\r", buffer);
     pipe_read("git log -1 | head -n 4 | grep commit", buffer, sizeof(buffer));
-    if (strlen(buffer) > 0 ) vos_print("%s", buffer);
+    if (strlen(buffer) > 0 ) vos_print("%s\r", buffer);
     pipe_read("git log -1 | head -n 4 | grep Date", buffer, sizeof(buffer));
-    if (strlen(buffer) > 0 ) vos_print("%s", buffer);
+    if (strlen(buffer) > 0 ) vos_print("%s\r", buffer);
     pipe_read("git log -1 | head -n 4 | grep Author", buffer, sizeof(buffer));
-    if (strlen(buffer) > 0 ) vos_print("%s", buffer);
+    if (strlen(buffer) > 0 ) vos_print("%s\r", buffer);
     vos_print("===================================================\r\n");
     
     return CMD_OK;
@@ -343,6 +251,39 @@ int cli_change_dir(int argc, char **argv)
     }
     
     return CMD_OK;
+}
+
+int cli_run_dft_test(int argc, char **argv)
+{
+    int ret;
+    
+    if (argc < 2) {
+        vos_print("usage: %s <param> \r\n", argv[0]);
+        return VOS_OK;
+    }
+
+    //stop bg task
+    vos_print("Stopping bg task ...\r\n");
+    sys_conf_set("drv_task_disable",    "1");
+    sys_conf_set("drv_timer_disable",   "1");
+    sys_conf_set("hwmon_disable",       "1");
+    vos_msleep(1000);
+
+    //run dft test
+    vos_print("Run DFT test ...\r\n");
+    ret = drv_run_dft_test(argv[1]);
+    if (ret != VOS_OK) {
+        vos_print("DFT test FAILED !!\r\n");
+    } else {
+        vos_print("DFT test PASS !! \r\n");
+    }
+
+    //recover bg task
+    sys_conf_set("drv_task_disable",    "0");
+    sys_conf_set("hwmon_disable",       "0");
+    sys_conf_set("drv_timer_disable",   "0");
+
+    return VOS_OK;
 }
 
 void drv_cmd_reg()
@@ -370,14 +311,12 @@ void drv_cmd_reg()
     cli_cmd_reg("wr_ram",       "write FPGA RAM",       &cli_devmem_write); //todo
 
 #ifndef DAEMON_RELEASE    
-    cli_cmd_reg("ut_drv",       "drv api unittest",     &cli_drv_unit_test);
+    cli_cmd_reg("dft_test",     "run DFT test",         &cli_run_dft_test);
 #endif
 }
 #endif
 
 #if T_DESC("script", 1)
-
-
 #define MAX_P_NUM           8
 #define OPTYPE_READ         1
 #define OPTYPE_WRITE        2
@@ -545,26 +484,48 @@ int drv_load_script(char *file_name)
 
 #if T_DESC("drv_main", 1)
 
+#ifndef DAEMON_RELEASE
+int drv_demo_timer(void *param)
+{   
+    int cpu_temp;
+
+    drv_get_cpu_temp(&cpu_temp);
+    xlog(XLOG_DEBUG, ">> cpu temp %d", cpu_temp);
+    return VOS_OK;
+}
+#endif
+
 TIMER_INFO_S drv_timer_list[] = 
 { 
-    {0, cpri_link_monitor, NULL}, 
+#ifndef DAEMON_RELEASE
+    {1, 60, 0, drv_demo_timer, NULL}, 
+#endif
+    {0, 3, 0, cpri_link_monitor, NULL}, //todo
 };
+
+int drv_timer_callback(void *param)
+{
+    static uint32 timer_cnt = 0;
+    
+    if (sys_conf_geti("drv_timer_disable")) {
+        return VOS_OK;
+    }
+    
+    timer_cnt++;
+    for (int i = 0; i < sizeof(drv_timer_list)/sizeof(TIMER_INFO_S); i++) {
+        if ( (drv_timer_list[i].enable) && (timer_cnt%drv_timer_list[i].interval == 0) ) {
+            drv_timer_list[i].run_cnt++;
+            if (drv_timer_list[i].cb_func) {
+                drv_timer_list[i].cb_func(drv_timer_list[i].cookie);
+            }
+        }
+    }
+    
+    return VOS_OK;
+}
 
 void* drv_main_task(void *param)  
 {
-    TIMER_INFO_S *tc;
-    timer_t timer_id;
-
-    for (int i = 0; i < sizeof(drv_timer_list)/sizeof(TIMER_INFO_S); i++) {
-        tc = &drv_timer_list[i];
-        if ( (tc->interval > 0) && (tc->cb_func != NULL) ) {
-            if (vos_create_timer(&timer_id, tc->interval, tc->cb_func, tc->cookie) != VOS_OK)  {  
-                xlog(XLOG_ERROR, "vos_create_timer failed");
-                //return NULL;  
-            } 
-        }
-    }
-
     //add irregular function in main loop
     while(1) {
         if (sys_conf_geti("drv_task_disable")) {
@@ -574,7 +535,7 @@ void* drv_main_task(void *param)
 
         //do_sth
 
-        vos_msleep(500);
+        vos_msleep(100);
     }
     
     return NULL;
@@ -584,6 +545,7 @@ int drv_module_init(char *cfg_file)
 {
     int ret;
     pthread_t threadid;
+    timer_t timer_id;
 
     xlog(XLOG_INFO, "drv_module_init: %s", cfg_file);
     drv_load_script(cfg_file);
@@ -591,8 +553,14 @@ int drv_module_init(char *cfg_file)
 
     ret = pthread_create(&threadid, NULL, drv_main_task, NULL);  
     if (ret != 0)  {  
-        xlog(XLOG_ERROR, "Error at %s:%d, pthread_create failed(%s)", __FILE__, __LINE__, strerror(errno));
+        xlog(XLOG_ERROR, "pthread_create failed(%s)", strerror(errno));
         return VOS_ERR;  
+    } 
+
+    ret = vos_create_timer(&timer_id, 1, drv_timer_callback, NULL);
+    if (ret != 0)  {  
+        xlog(XLOG_ERROR, "vos_create_timer failed");
+        return -1;  
     } 
 
     return VOS_OK;

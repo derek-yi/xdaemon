@@ -68,26 +68,8 @@ int devm_load_script(char *file_name)
 
 #if T_DESC("main", 1)
 
-TIMER_INFO_S devm_timer_list[] = 
-{
-    {0, NULL, NULL}, 
-};
-
 void* devm_main_task(void *param)  
 {
-    TIMER_INFO_S *tc;
-    timer_t timer_id;
-
-    for (int i = 0; i < sizeof(devm_timer_list)/sizeof(TIMER_INFO_S); i++) {
-        tc = &devm_timer_list[i];
-        if ( (tc->interval > 0) && (tc->cb_func != NULL) ) {
-            if (vos_create_timer(&timer_id, tc->interval, tc->cb_func, tc->cookie) != VOS_OK)  {  
-                xlog(XLOG_ERROR, "vos_create_timer failed");
-                //return NULL;  
-            } 
-        }
-    }
-
     //add irregular function in main loop
     while(1) {
         if (sys_conf_geti("devm_task_disable")) {
@@ -97,16 +79,43 @@ void* devm_main_task(void *param)
 
         //todo
 
-        vos_msleep(500);
+        vos_msleep(100);
     }
     
     return NULL;
+}
+
+TIMER_INFO_S devm_timer_list[] = 
+{
+    {0, 10, 0, NULL, NULL}, 
+};
+
+int devm_timer_callback(void *param)
+{
+    static uint32 timer_cnt = 0;
+    
+    if (sys_conf_geti("devm_timer_disable")) {
+        return VOS_OK;
+    }
+    
+    timer_cnt++;
+    for (int i = 0; i < sizeof(devm_timer_list)/sizeof(TIMER_INFO_S); i++) {
+        if ( (devm_timer_list[i].enable) && (timer_cnt%devm_timer_list[i].interval == 0) ) {
+            devm_timer_list[i].run_cnt++;
+            if (devm_timer_list[i].cb_func) {
+                devm_timer_list[i].cb_func(devm_timer_list[i].cookie);
+            }
+        }
+    }
+    
+    return VOS_OK;
 }
 
 int devm_init(char *cfg_file)
 {
     int ret = VOS_OK;
     pthread_t threadid;
+    timer_t timer_id;
     
     //load cfg script
     xlog(XLOG_INFO, "devm_init: %s", cfg_file);
@@ -118,8 +127,14 @@ int devm_init(char *cfg_file)
 
     ret = pthread_create(&threadid, NULL, devm_main_task, NULL);  
     if (ret != 0)  {  
-        xlog(XLOG_ERROR, "Error at %s:%d, pthread_create failed(%s)", __FILE__, __LINE__, strerror(errno));
+        xlog(XLOG_ERROR, "pthread_create failed(%s)", strerror(errno));
         return VOS_ERR;  
+    } 
+
+    ret = vos_create_timer(&timer_id, 1, devm_timer_callback, NULL);
+    if (ret != 0)  {  
+        xlog(XLOG_ERROR, "vos_create_timer failed");
+        return -1;  
     } 
 
     return ret;    

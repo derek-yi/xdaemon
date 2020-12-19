@@ -44,7 +44,9 @@ typedef int (* timer_cb)(void *param);
 
 typedef struct 
 {
-    int         interval; //0 means disable
+    uint32      enable;
+    uint32      interval;
+    uint32      run_cnt;
     timer_cb    cb_func;
     void       *cookie;
 }TIMER_INFO_S;
