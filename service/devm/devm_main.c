@@ -31,7 +31,7 @@ int cli_sys_cfg_set(int argc, char **argv)
 {
     if (argc < 3) {
         vos_print("usage: %s <key> <value> \r\n", argv[0]);
-        return VOS_OK;
+        return CMD_ERR_PARAM;
     }
 
     sys_conf_set(argv[1], argv[2]);

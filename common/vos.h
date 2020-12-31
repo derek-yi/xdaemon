@@ -59,6 +59,8 @@ int shell_run_cmd(char *cmd_str);
 
 int vos_print(const char * format,...);
 
+int parse_hex_string(char *hexStr, int max, uint8 *pData);
+
 #endif
 
 

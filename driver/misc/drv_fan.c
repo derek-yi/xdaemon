@@ -70,7 +70,7 @@ int drv_fan_get_speed(int fan_id, int *ret_value)
     int reg_val;
     int speed;
     
-    if (fan_id < 0 || fan_id > 1) return VOS_ERR;
+    if (fan_id < 0 || fan_id >= SYS_MAX_FAN_ID) return VOS_ERR;
     if (ret_value == NULL) return VOS_ERR;
 
     reg_val = (int)fpga_read(FAN_RPS);

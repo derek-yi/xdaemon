@@ -13,7 +13,7 @@
 #define CMD_ERR                 0x01
 #define CMD_ERR_PARAM           0x02
 #define CMD_ERR_NOT_MATCH       0x03
-#define CMD_ERR_AMBIGUOUS       0x04
+#define CMD_OK_NO_LOG           0x04
 #define CMD_ERR_EXIT            0x99
 
 typedef int (* CMD_FUNC)(int argc, char **argv);

@@ -4,14 +4,13 @@
         "hwmon.conf"     : "/root/app/oran_daemon/configs/hwmon_cfg_rhub.json",
         "devm.conf"      : "/root/app/oran_daemon/configs/devm_cfg_rhub.json",
         "upcfg.conf"     : "/root/app/oran_daemon/configs/null.json",
-        "max_fru"        : 1,
-        "max_rf_chip"    : 0,
         "uds.file"       : "/tmp/oran.daemon",
         "xlog.path"      : "/O-RAN/log/",
         "customer.name"  : "fuhuake",
         "customer.code"  : 100
     },
     "dyn.config": {
+        "default.fru0"   : "/root/fw/fru_bin/fru_rhub.json",
         "mod.date"       : "20201127"
     }
 }

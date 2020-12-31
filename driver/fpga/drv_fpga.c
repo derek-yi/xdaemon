@@ -14,13 +14,28 @@ uint32 fpga_write(uint32 addr, uint32 value)
     return (uint32)devmem_write((unsigned long)addr, AT_WORD, (unsigned long)value);
 }
 
-//bbu_rru_CT_to_cmcc.sh
-int bbu_rru_CT_to_cmcc()
+uint32 fpga_read_bits(uint32 reg_addr, uint32 start, uint32 mask)
 {
-    return VOS_OK;
+    uint32 value;
+
+    value = fpga_read(reg_addr);
+    value = value >> start;
+    value = value & mask;
+    
+    return value;
 }
 
-//cpri-r21-mul.sh
+uint32 fpga_write_bits(uint32 reg_addr, uint32 start, uint32 mask, uint32 value)
+{
+    uint32 old_value;
+
+    old_value = fpga_read(reg_addr);
+    old_value = old_value & (~(mask << start));
+    value = old_value | ((value & mask) << start);
+    
+    return fpga_write(reg_addr, value);
+}
+
 int drv_get_cpri_links(int *link_cnt)
 {
     int cnt = 0;
@@ -36,7 +51,6 @@ int drv_get_cpri_links(int *link_cnt)
     return VOS_OK;
 }
 
-//getversion
 int drv_board_type(void)
 {
     uint32 value = fpga_read(FPGA_VER_ADDRESS);

@@ -3,6 +3,7 @@
 #include "drv_cpu.h"
 #include "drv_main.h"
 #include "drv_fpga.h"
+#include "drv_i2c.h"
 #include "devm_main.h"
 
 #if T_DESC("drv_cmd", 1)
@@ -32,6 +33,18 @@ int cli_show_board_temp(int argc, char **argv)
     return 0;
 }
 
+int cli_show_fan_info(int argc, char **argv)
+{
+    int temp_val;
+
+    for (int i = 0; i < SYS_MAX_FAN_ID; i++) {
+        drv_fan_get_speed(i, &temp_val);
+        vos_print("FAN[%d] speed is %d \r\n", i, temp_val);
+    }
+    
+    return 0;
+}
+
 int cli_ad9544_read(int argc, char **argv)
 {
     uint32 base_addr;
@@ -39,7 +52,7 @@ int cli_ad9544_read(int argc, char **argv)
 
     if (argc < 2) {
         vos_print("usage: %s <addr> [<cnt>] \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     base_addr = (uint32)strtoul(argv[1], 0, 0);
@@ -52,7 +65,7 @@ int cli_ad9544_read(int argc, char **argv)
         vos_print("REG: [0x%08x] = 0x%x \r\n", base_addr + i, value);
     }
     
-    return 0;
+    return CMD_OK;
 }
 
 int cli_ad9544_write(int argc, char **argv)
@@ -62,7 +75,7 @@ int cli_ad9544_write(int argc, char **argv)
 
     if (argc < 3) {
         vos_print("usage: %s <addr> <value> \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     reg_addr = (uint32)strtoul(argv[1], 0, 0);
@@ -72,7 +85,7 @@ int cli_ad9544_write(int argc, char **argv)
     reg_value = clk_ad9544_reg_read(0, reg_addr);
     vos_print("REG: [0x%08x] = 0x%x \r\n", reg_addr, reg_value);
 
-    return 0;
+    return CMD_OK;
 }
 
 #ifdef INCLUDE_AD9528
@@ -83,7 +96,7 @@ int cli_ad9528_read(int argc, char **argv)
 
     if (argc < 2) {
         vos_print("usage: %s <addr> [<cnt>] \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     base_addr = (uint32)strtoul(argv[1], 0, 0);
@@ -96,7 +109,7 @@ int cli_ad9528_read(int argc, char **argv)
         vos_print("REG: [0x%08x] = 0x%x \r\n", base_addr + i, value);
     }
     
-    return 0;
+    return CMD_OK;
 }
 
 int cli_ad9528_write(int argc, char **argv)
@@ -106,7 +119,7 @@ int cli_ad9528_write(int argc, char **argv)
 
     if (argc < 3) {
         vos_print("usage: %s <addr> <value> \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     reg_addr = (uint32)strtoul(argv[1], 0, 0);
@@ -116,7 +129,7 @@ int cli_ad9528_write(int argc, char **argv)
     reg_value = clk_ad9528_reg_read(0, reg_addr);
     vos_print("REG: [0x%08x] = 0x%x \r\n", reg_addr, reg_value);
 
-    return 0;
+    return CMD_OK;
 }
 #endif
 
@@ -129,7 +142,7 @@ int cli_ad9009_read(int argc, char **argv)
 
     if (argc < 2) {
         vos_print("usage: %s <chip> <addr> [<cnt>] \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     chip_id = (uint32)strtoul(argv[1], 0, 0);
@@ -143,7 +156,7 @@ int cli_ad9009_read(int argc, char **argv)
         vos_print("REG: [0x%08x] = 0x%x \r\n", base_addr + i, value);
     }
     
-    return 0;
+    return CMD_OK;
 }
 #endif
 
@@ -154,7 +167,7 @@ int cli_devmem_read(int argc, char **argv)
 
     if (argc < 2) {
         vos_print("usage: %s <addr> [<cnt>]\r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     base_addr = (uint32)strtoul(argv[1], 0, 0);
@@ -167,7 +180,7 @@ int cli_devmem_read(int argc, char **argv)
         vos_print("MEM_RD: [0x%08x] = 0x%x \r\n", base_addr + i*4, value);
     }
     
-    return 0;
+    return CMD_OK;
 }
 
 int cli_devmem_write(int argc, char **argv)
@@ -177,7 +190,7 @@ int cli_devmem_write(int argc, char **argv)
 
     if (argc < 3) {
         vos_print("usage: %s <addr> <value> \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     mem_addr = (uint32)strtoul(argv[1], 0, 0);
@@ -187,7 +200,59 @@ int cli_devmem_write(int argc, char **argv)
     rd_value = fpga_read(mem_addr);
     vos_print("MEM_WR: 0x%x -> [0x%08x], read 0x%x \r\n", value, mem_addr, rd_value);
     
-    return 0;
+    return CMD_OK;
+}
+
+int cli_fpga_read(int argc, char **argv)
+{
+    uint32 reg_addr, start_bit, n_bits, mask;
+    uint32 value;
+
+    if (argc < 4) {
+        vos_print("usage: %s <addr> <start_bit> <n_bits>\r\n", argv[0]);
+        return CMD_ERR_PARAM;
+    }
+
+    reg_addr    = (uint32)strtoul(argv[1], 0, 0);
+    start_bit   = (uint32)strtoul(argv[2], 0, 0);
+    n_bits      = (uint32)strtoul(argv[3], 0, 0);
+    if (start_bit > 31 || n_bits < 1 || start_bit + n_bits > 32) {
+        vos_print("invalid param \r\n");
+        return CMD_ERR_PARAM;
+    }
+    mask = (1<<n_bits) - 1;
+
+    value = fpga_read_bits(reg_addr, start_bit, mask);
+    vos_print("MEM_RD: [0x%08x]<%d:%d> = 0x%x \r\n", reg_addr, start_bit, start_bit + n_bits, value);
+    
+    return CMD_OK;
+}
+
+int cli_fpga_write(int argc, char **argv)
+{
+    uint32 reg_addr, start_bit, n_bits, mask;
+    uint32 value;
+
+    if (argc < 5) {
+        vos_print("usage: %s <addr> <start_bit> <n_bits> <value>\r\n", argv[0]);
+        return CMD_ERR_PARAM;
+    }
+
+    reg_addr    = (uint32)strtoul(argv[1], 0, 0);
+    start_bit   = (uint32)strtoul(argv[2], 0, 0);
+    n_bits      = (uint32)strtoul(argv[3], 0, 0);
+    value       = (uint32)strtoul(argv[4], 0, 0);
+    if (start_bit > 31 || n_bits < 1 || start_bit + n_bits > 32) {
+        vos_print("invalid param \r\n");
+        return CMD_ERR_PARAM;
+    }
+    mask = (1<<n_bits) - 1;
+
+    fpga_write_bits(reg_addr, start_bit, mask, value);
+    value = fpga_read_bits(reg_addr, start_bit, mask);
+    vos_print("MEM_WR: [0x%08x]<%d:%d> = 0x%x \r\n", reg_addr, start_bit, start_bit + n_bits, value);
+    
+    return CMD_OK;
 }
 
 int cli_show_version(int argc, char **argv)
@@ -197,28 +262,27 @@ int cli_show_version(int argc, char **argv)
     int board_type = drv_board_type();
     
     vos_print("===================================================\r\n");
-    vos_print("BOARD TYPE  : %s\r\n", board_type == BOARD_TYPE_RRU ? "RRU" : "RHUB");
-    vos_print("FPGA Ver    : V%d.%d\r\n", (value&0x0000ff00)>>8, value&0x000000ff);
-    if (board_type == BOARD_TYPE_RRU) {
-        vos_print("channel     : %s\r\n", (value&0x00ff0000) == 0x00040000? "4T4R" :"2T2R");
-    }
+    vos_print("BOARD TYPE    : %s\r\n", board_type == BOARD_TYPE_RRU ? "RRU" : "RHUB");
+    vos_print("FPGA Ver      : V%d.%d\r\n", (value&0x0000ff00)>>8, value&0x000000ff);
+    //vos_print("Max Channel   : %s\r\n", (value&0x00ff0000) == 0x00040000? "4T4R" :"2T2R");
+    vos_print("Channel       : %s\r\n", (drv_get_channel_cnt() == 4)? "4T4R" :"2T2R");
     if (board_type == BOARD_TYPE_RHUB) {
-        if ((value&0xf0000000) == 0x00000000) vos_print("S-Plane Type   : Normal\r\n");
-        else if ((value&0xf0000000) == 0x10000000) vos_print("S-Plane Type: 1588\r\n");
-        else if ((value&0xf0000000) == 0x20000000) vos_print("S-Plane Type: GNSS\r\n");
+        if ((value&0xf0000000) == 0x00000000) vos_print("S-Plane Type  : Normal\r\n");
+        else if ((value&0xf0000000) == 0x10000000) vos_print("S-Plane Type  : 1588\r\n");
+        else if ((value&0xf0000000) == 0x20000000) vos_print("S-Plane Type  : GNSS\r\n");
     }
     vos_print("\r\n");
     
-    sys_node_readstr("/proc/version", buffer, sizeof(buffer));
-    vos_print("Kernel Ver  : %s\r\n", buffer);
+    pipe_read("uname -r", buffer, sizeof(buffer));
+    vos_print("Kernel Version: %s", buffer);
 
     if (board_type != BOARD_TYPE_NONE) {
-        sys_node_readstr("/sys/firmware/devicetree/base/fw-dts-name", buffer, sizeof(buffer));
-        vos_print("dts name    : %s\r\n", buffer);
-        sys_node_readstr("/sys/firmware/devicetree/base/fhk_version/version", buffer, sizeof(buffer));
-        vos_print("dts version : %s\r\n", buffer);
+        sys_node_readstr("/sys/firmware/devicetree/base/fhk_version/branch_ver", buffer, sizeof(buffer));
+        vos_print("Branch name   : %s\r\n", buffer);
+        sys_node_readstr("/sys/firmware/devicetree/base/fhk_version/commit_id", buffer, sizeof(buffer));
+        vos_print("Commit id     : %s\r\n", buffer);
         sys_node_readstr("/sys/firmware/devicetree/base/fhk_version/compile_date", buffer, sizeof(buffer));
-        vos_print("compile_date: %s\r\n", buffer);
+        vos_print("compile_date  : %s\r\n", buffer);
         vos_print("\r\n");
     }
 
@@ -243,7 +307,7 @@ int cli_change_dir(int argc, char **argv)
 {
     if (argc < 2) {
         vos_print("usage: %s <path> \r\n", argv[0]);
-        return 0;
+        return CMD_ERR_PARAM;
     }
 
     if ( chdir(argv[1]) == -1 ) {
@@ -253,13 +317,67 @@ int cli_change_dir(int argc, char **argv)
     return CMD_OK;
 }
 
+int cli_i2c_read(int argc, char **argv)
+{
+    uint32 rd_cnt = 1;
+    int dev_bus;
+    int dev_id;
+    int base_addr;
+
+    if (argc < 4) {
+        vos_print("usage: %s <bus> <addr> <offset> [<cnt>] \r\n", argv[0]);
+        return CMD_ERR_PARAM;
+    }
+
+    dev_bus = (int)strtoul(argv[1], 0, 0);
+    dev_id = (int)strtoul(argv[2], 0, 0);
+    base_addr = (int)strtoul(argv[3], 0, 0);
+    if (argc > 4) {
+       rd_cnt = (uint32)strtoul(argv[4], 0, 0);
+    }
+
+    for (int i = 0; i < rd_cnt; i++) {
+        int value = i2c_read_data(dev_bus, I2C_SMBUS_BYTE_DATA, dev_id, base_addr + i);
+        vos_print("[0x%08x] = 0x%x \r\n", base_addr + i, value);
+    }
+    
+    return CMD_OK;
+}
+
+int cli_i2c_write(int argc, char **argv)
+{
+    int ret;
+    int dev_bus;
+    int dev_id;
+    int base_addr;
+    uint8 value;
+
+    if (argc < 5) {
+        vos_print("usage: %s <bus> <addr> <offset> <value>\r\n", argv[0]);
+        return CMD_ERR_PARAM;
+    }
+
+    dev_bus = (int)strtoul(argv[1], 0, 0);
+    dev_id = (int)strtoul(argv[2], 0, 0);
+    base_addr = (int)strtoul(argv[3], 0, 0);
+    value = (uint8)strtoul(argv[4], 0, 0);
+
+    ret = i2c_write_buffer(dev_bus, I2C_SMBUS_BYTE_DATA, dev_id, base_addr, &value, 1);
+    vos_msleep(5);
+    if (ret != VOS_OK) {
+        vos_print("I2C write failed \r\n");
+    }
+
+    return CMD_OK;
+}
+
 int cli_run_dft_test(int argc, char **argv)
 {
     int ret;
     
     if (argc < 2) {
         vos_print("usage: %s <param> \r\n", argv[0]);
-        return VOS_OK;
+        return CMD_ERR_PARAM;
     }
 
     //stop bg task
@@ -290,6 +408,7 @@ void drv_cmd_reg()
 {
     cli_cmd_reg("cpu_temp",     "show cpu temp",        &cli_show_cpu_temp);
     cli_cmd_reg("board_temp",   "show board temp",      &cli_show_board_temp);
+    cli_cmd_reg("fan_speed",    "show fan speed",       &cli_show_fan_info);
     cli_cmd_reg("mem_rd",       "devmem read",          &cli_devmem_read);
     cli_cmd_reg("mem_wr",       "devmem write",         &cli_devmem_write);
     cli_cmd_reg("version",      "show version",         &cli_show_version);
@@ -305,13 +424,17 @@ void drv_cmd_reg()
     cli_cmd_reg("rd_ad9009",    "read ad9009 reg",      &cli_ad9009_read);
 #endif  
 
+    cli_cmd_reg("rd_bits",      "read FPGA reg bits",   &cli_fpga_read);
+    cli_cmd_reg("wr_bits",      "write FPGA reg bits",  &cli_fpga_write);
     cli_cmd_reg("rd_reg",       "read FPGA reg",        &cli_devmem_read);
     cli_cmd_reg("wr_reg",       "write FPGA reg",       &cli_devmem_write);
-    cli_cmd_reg("rd_ram",       "read FPGA RAM",        &cli_devmem_read); //todo
-    cli_cmd_reg("wr_ram",       "write FPGA RAM",       &cli_devmem_write); //todo
+    //cli_cmd_reg("rd_ram",       "read FPGA RAM",        &cli_devmem_read); //todo
+    //cli_cmd_reg("wr_ram",       "write FPGA RAM",       &cli_devmem_write); //todo
 
 #ifndef DAEMON_RELEASE    
     cli_cmd_reg("dft_test",     "run DFT test",         &cli_run_dft_test);
+    cli_cmd_reg("i2c_rd",       "I2C Read",             &cli_i2c_read);
+    cli_cmd_reg("i2c_wr",       "I2C Write",            &cli_i2c_write);
 #endif
 }
 #endif
@@ -500,7 +623,6 @@ TIMER_INFO_S drv_timer_list[] =
 #ifndef DAEMON_RELEASE
     {1, 60, 0, drv_demo_timer, NULL}, 
 #endif
-    {0, 3, 0, cpri_link_monitor, NULL}, //todo
 };
 
 int drv_timer_callback(void *param)

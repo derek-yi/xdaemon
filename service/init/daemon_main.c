@@ -1,6 +1,7 @@
 
 
 #include "daemon_pub.h"
+#include <semaphore.h>
 
 #include "drv_main.h"
 #include "hwmon_main.h"
@@ -12,38 +13,37 @@
 
 SYS_CONF_PARAM sys_conf;
 
+sem_t sysconf_sem;
+
 char *sys_conf_get(char *key_str)
 {
     DYN_CFG_S *p;
 
     if (key_str == NULL) return NULL;
 
+    sem_wait(&sysconf_sem);
     p = sys_conf.dyn_cfg;
     while (p != NULL) {
         if ( !strcmp(key_str, p->cfg_str) ) {
+            sem_post(&sysconf_sem);
             return p->cfg_val;
         }
         p = p->next;
     }
-    
+
+    sem_post(&sysconf_sem);
     return NULL;
 }
 
 int sys_conf_geti(char *key_str)
 {
-    DYN_CFG_S *p;
+    char *cfg_val;
 
-    if (key_str == NULL) return 0;
+    cfg_val = sys_conf_get(key_str);
 
-    p = sys_conf.dyn_cfg;
-    while (p != NULL) {
-        if ( !strcmp(key_str, p->cfg_str) ) {
-            return strtol(p->cfg_val, NULL, 0);
-        }
-        p = p->next;
-    }
-    
-    return 0;
+    if (cfg_val == NULL) return 0;
+
+    return strtol(cfg_val, NULL, 0);
 }
 
 int sys_conf_set(char *key_str, char *key_val)
@@ -51,12 +51,15 @@ int sys_conf_set(char *key_str, char *key_val)
     DYN_CFG_S *p;
 
     if (key_str == NULL) return VOS_ERR;
+    if (key_val == NULL) return VOS_ERR;
 
+    sem_wait(&sysconf_sem);
     p = sys_conf.dyn_cfg;
     while (p != NULL) {
         if( !strcmp(key_str, p->cfg_str) ) {
             if (p->cfg_val) free(p->cfg_val);
             p->cfg_val = strdup(key_val);
+            sem_post(&sysconf_sem);
             return VOS_OK;
         }
         p = p->next;
@@ -64,6 +67,7 @@ int sys_conf_set(char *key_str, char *key_val)
 
     p = (DYN_CFG_S *)malloc(sizeof(DYN_CFG_S));
     if (p == NULL) {
+        sem_post(&sysconf_sem);
         return VOS_ERR;
     }
     
@@ -72,15 +76,23 @@ int sys_conf_set(char *key_str, char *key_val)
     p->next = sys_conf.dyn_cfg;
     sys_conf.dyn_cfg = p;
     
+    sem_post(&sysconf_sem);
     return VOS_OK;
 }
 
 int daemon_load_script(char *file_name)
 {
+    int ret;
 	char *json = NULL;
     int i, list_cnt;
     cJSON* root_tree;
     cJSON* ent_list;
+
+    ret = sem_init(&sysconf_sem, 0, 1);
+    if (ret != 0)  {  
+        xlog(XLOG_ERROR, "%d: sem_init failed(%s) \n", __LINE__, strerror(errno));
+        return VOS_ERR;  
+    } 
 
     xlog(XLOG_INFO, "load conf %s ...", file_name);
     json = read_file(file_name);

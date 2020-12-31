@@ -38,6 +38,10 @@ uint32 fpga_read(uint32 addr);
 
 uint32 fpga_write(uint32 addr, uint32 value);
 
+uint32 fpga_read_bits(uint32 reg_addr, uint32 start, uint32 mask);
+
+uint32 fpga_write_bits(uint32 reg_addr, uint32 start, uint32 mask, uint32 value);
+
 int drv_get_cpri_links(int *link_cnt);
 
 int drv_board_type(void);
@@ -46,7 +50,6 @@ uint32 xlnx_smi_r(uint32 mac_base, uint32 phy_addr, uint32 reg_addr);
 
 int xlnx_smi_w(uint32 mac_base, uint32 phy_addr, uint32 reg_addr, uint32 wr_val);
 
-int cpri_link_monitor(void *param);
 
 
 #endif

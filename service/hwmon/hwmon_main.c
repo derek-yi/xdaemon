@@ -218,7 +218,7 @@ int hwmon_set_interval(const char *node_desc, int interval)
     return VOS_ERR;
 }
 
-int hwmon_policy_update()
+int hwmon_policy_update(void *param)
 {
     hwmon_set_node_cfg("power.check0", "param1", "19088000"); //todo
     
@@ -360,14 +360,17 @@ int cli_enable_hwmon_task(int argc, char **argv)
 {
     if (argc < 2) {
         vos_print("usage: %s <enable|disable> \r\n", argv[0]);
-        return VOS_OK;
+        return CMD_ERR_PARAM;
     }
 
-    if (!strcmp(argv[1], "enable")) {
+    if (!strncasecmp(argv[1], "enable", strlen(argv[1]))) {
         hwmon_enable_task(TRUE);
-    } else if (!strcmp(argv[1], "disable")) {
+    } else if (!strncasecmp(argv[1], "disable", strlen(argv[1]))) {
         hwmon_enable_task(FALSE);
-    } 
+    } else {
+        vos_print("invalid param \r\n");
+        return CMD_ERR_PARAM;
+    }
     
     return VOS_OK;
 }
@@ -376,7 +379,7 @@ int cli_set_hwmon_node(int argc, char **argv)
 {
     if (argc < 4) {
         vos_print("usage: hm_config <node> <param> <value> \r\n");
-        return VOS_OK;
+        return CMD_ERR_PARAM;
     }
 
     if ( hwmon_set_node_cfg(argv[1], argv[2], argv[3]) != VOS_OK ) {
@@ -465,9 +468,26 @@ pthread_t hwmon_chk_tid;
 
 timer_t hwmon_chk_timer;
 
-/*************************************************************************
- * 定时器回调，检测各检测点是否超时
- *************************************************************************/
+int hwmon_list_check(void *param)
+{
+    for (int i = 0; i < HWMON_MAX_NODE; i++) {
+        if (hwmon_list[i].enable) {
+            if (hwmon_list[i].interval_cmp++ >= hwmon_list[i].base_cfg.interval) {
+                hwmon_list[i].interval_cmp = 0;
+                hwmon_list[i].check_status = CHK_STATUS_READY;
+            }
+        }
+    }
+    return VOS_OK;
+}
+
+TIMER_INFO_S hwmon_timer_list[] = 
+{ 
+    {1, 1, 0, hwmon_list_check, NULL}, 
+    {0, 3, 0, cpri_link_monitor, NULL}, //todo
+    {0, 5, 0, hwmon_policy_update, NULL}, //todo
+};
+
 int hwmon_timer_callback(void *param)
 {
     static uint32 timer_cnt = 0;
@@ -477,17 +497,13 @@ int hwmon_timer_callback(void *param)
     }
     
     timer_cnt++;
-    for (int i = 0; i < HWMON_MAX_NODE; i++) {
-        if (hwmon_list[i].enable) {
-            if (hwmon_list[i].interval_cmp++ >= hwmon_list[i].base_cfg.interval) {
-                hwmon_list[i].interval_cmp = 0;
-                hwmon_list[i].check_status = CHK_STATUS_READY;
+    for (int i = 0; i < sizeof(hwmon_timer_list)/sizeof(TIMER_INFO_S); i++) {
+        if ( (hwmon_timer_list[i].enable) && (timer_cnt%hwmon_timer_list[i].interval == 0) ) {
+            hwmon_timer_list[i].run_cnt++;
+            if (hwmon_timer_list[i].cb_func) {
+                hwmon_timer_list[i].cb_func(hwmon_timer_list[i].cookie);
             }
         }
-    }
-
-    if (timer_cnt%5 == 0) {
-        hwmon_policy_update();
     }
     
     return VOS_OK;

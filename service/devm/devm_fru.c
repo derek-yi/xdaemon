@@ -1004,8 +1004,8 @@ int cli_show_fru_info(int argc, char **argv)
     int fru_id;
 
     if (argc < 2) {
-        vos_print("Usage: <%s> <fru-id> \r\n", argv[0]);
-        return VOS_OK;
+        vos_print("Usage: %s <fru-id> \r\n", argv[0]);
+        return CMD_ERR_PARAM;
     }
 
     fru_id = atoi(argv[1]);
@@ -1024,9 +1024,9 @@ int cli_fru_set_mac(int argc, char **argv)
     uint8 mac_addr[6];
 
     if (argc < 2) {
-        vos_print("Usage: <%s> <mac-addr> \r\n", argv[0]);
+        vos_print("Usage: %s <mac-addr> \r\n", argv[0]);
         vos_print("       <mac-addr> mac in hex, such as 000c-293e-ce9d \r\n");
-        return VOS_OK;
+        return CMD_ERR_PARAM;
     }
 
     if ( parse_hex_string(argv[1], 6, mac_addr) != VOS_OK) {
@@ -1043,9 +1043,9 @@ int cli_fru_set_uuid(int argc, char **argv)
     uint8 hex_uuid[16];
 
     if (argc < 2) {
-        vos_print("Usage: <%s> <uuid> \r\n", argv[0]);
+        vos_print("Usage: %s <uuid> \r\n", argv[0]);
         vos_print("       <uuid> uuid in hex, such as 2a5d7f1f-4817-4dea-9a70-b8ff7ae4710a \r\n");
-        return VOS_OK;
+        return CMD_ERR_PARAM;
     }
 
     if ( parse_hex_string(argv[1], 16, hex_uuid) != VOS_OK) {
@@ -1062,8 +1062,8 @@ int cli_fru_set_skuid(int argc, char **argv)
     uint8 sku_id;
 
     if (argc < 2) {
-        vos_print("Usage: <%s> <skuid> \r\n", argv[0]);
-        return VOS_OK;
+        vos_print("Usage: %s <skuid> \r\n", argv[0]);
+        return CMD_ERR_PARAM;
     }
 
     sku_id = strtoul(argv[1], 0, 0);             
@@ -1077,8 +1077,8 @@ int cli_fru_set_rf_calibration(int argc, char **argv)
     uint8 store = FALSE;
 
     if (argc < 3) {
-        vos_print("Usage: <%s> <offset> <value> [<store>]\r\n", argv[0]);
-        return VOS_OK;
+        vos_print("Usage: %s <offset> <value> [<store>]\r\n", argv[0]);
+        return CMD_ERR_PARAM;
     }
 
     offset = strtoul(argv[1], 0, 0);             
@@ -1096,8 +1096,8 @@ int cli_fru_load_json(int argc, char **argv)
     EEPROM_INFO info;
     
     if (argc < 3) {
-        vos_print("Usage: <%s> <fru-id> <jsonfile>\r\n", argv[0]);
-        return VOS_OK;
+        vos_print("Usage: %s <fru-id> <jsonfile>\r\n", argv[0]);
+        return CMD_ERR_PARAM;
     }
 
     fru_id = atoi(argv[1]);
@@ -1123,8 +1123,8 @@ int cli_fru_set_sn(int argc, char **argv)
     EEPROM_INFO info;
 
     if (argc < 3) {
-        vos_print("Usage: <%s> <fru-id> <sn-str>\r\n", argv[0]);
-        return VOS_OK;
+        vos_print("Usage: %s <fru-id> <sn-str>\r\n", argv[0]);
+        return CMD_ERR_PARAM;
     }
 
     fru_id = atoi(argv[1]);
@@ -1168,7 +1168,7 @@ int fru_set_sn(int argc, char **argv)
     EEPROM_INFO info;
 
     if (argc < 2) {
-        vos_print("Usage: <%s> <fru-id> \r\n", argv[0]);
+        vos_print("Usage: %s <fru-id> \r\n", argv[0]);
         return VOS_OK;
     }
 

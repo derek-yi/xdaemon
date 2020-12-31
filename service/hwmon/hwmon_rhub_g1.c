@@ -1,11 +1,9 @@
-
-
-
 #include "daemon_pub.h"
 
 #include "hwmon_main.h"
 #include "drv_fpga.h"
 #include "devm_fru.h"
+#include "tiny_cli.h"
 
 
 #ifdef BOARD_RHUB_G1
@@ -181,6 +179,29 @@ void CPRI_DELAY_CTRL()
     fpga_write(0x43c30178, tmp_value);
 }
 
+int get_cpri_link(uint32 port_id, uint32 *link)
+{
+    if ( port_id >= MAX_CPRI_CNT + 2 ) return VOS_ERR;
+    if ( link == NULL ) return VOS_ERR;
+
+    //2:has optical module,no link;3:Rx/Tx active ;4:Rx&Tx idle.
+    if (port_id == 0) { //BBU
+        if (fpga_read(BBU_STATE_BASE) > 2) *link = TRUE;
+        else *link = FALSE;
+        return VOS_OK;
+    } 
+
+    //2:has optical module,no link;3:Rx/Tx active ;4:Rx&Tx idle.
+    if (port_id == 0) { //CAS
+        if (fpga_read(CAS_STATE_BASE) > 2) *link = TRUE;
+        else *link = FALSE;
+        return VOS_OK;
+    }
+
+    *link = CPRI_LINK_STAT[port_id - 2]; //CPRI0-7
+    return VOS_OK;
+}
+
 //cpri-r21-mul.sh
 int cpri_link_monitor(void *param)
 {
@@ -200,9 +221,7 @@ int cpri_link_monitor(void *param)
             CPRI_LINK_STAT[i] = 1;
 
             state_reg = fpga_read(CPRI_BASE[i] + 4);
-            vos_msleep(500);
-            state_reg = fpga_read(CPRI_BASE[i] + 4);
-            vos_msleep(500);
+            vos_msleep(100);
             state_reg = fpga_read(CPRI_BASE[i] + 4);
             if ( (state_reg& 0xff03) != 0) {
                 if(dbg_mode) xlog(XLOG_WARN, "cpri %d reg 0x4 is %x, need reset", i, state_reg);
@@ -253,7 +272,7 @@ int cpri_link_monitor(void *param)
             uuid_str[j*4 + 2] = (value >> 8) & 0xFF;
             uuid_str[j*4 + 3] = (value) & 0xFF;
         }
-        if(dbg_mode) xlog(XLOG_INFO, "CPRI id is %d, rhub sn is %s", i, uuid_str);
+        if(dbg_mode) xlog(XLOG_INFO, "CPRI id is %d, rru sn is %s", i, uuid_str);
 
         fpga_read(VENDOR_READ_BASE[i]);//RRU_ID
         fpga_read(VENDOR_READ_BASE[i] + 4);//T_OFFSET

@@ -4,6 +4,7 @@
 
 #include "drv_main.h"
 #include "drv_cpu.h"
+#include "drv_fpga.h"
 
 #ifdef BOARD_RHUB_G1    
 
@@ -63,6 +64,24 @@ int drv_get_cpu_temp(int *temp)
     *temp = (int)float_tmp;
     
     return VOS_OK;
+}
+
+/*
+0x43c30118
+[7]	atenna_3 rx_enable
+[6]	atenna_2 rx_enable
+[5]	atenna_1 rx_enable
+[4]	atenna_0 rx_enable
+[3]	atenna_3 tx_enable
+[2]	atenna_2 tx_enable
+[1]	atenna_1 tx_enable
+[0]	atenna_0 tx_enable
+*/
+int drv_get_channel_cnt(void)
+{
+    if ( fpga_read_bits(0x43c30118, 6, 0x3) || fpga_read_bits(0x43c30118, 2, 0x3) )
+        return 4;
+    return 2;
 }
 
 #endif

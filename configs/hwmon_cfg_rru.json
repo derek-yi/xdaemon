@@ -4,74 +4,74 @@
 	},
 	"checklist": {
 		"cpu.occupy": {
-			"function": "check_cpu_occupy",
+			"function": "cpu.occupy",
 			"interval": 10,
 			"repeat": 3,
 			"//param": "top_limit",
 			"param": [90]
 		},
 		"mem.occupy": {
-			"function": "check_mem_occupy",
+			"function": "mem.occupy",
 			"interval": 10,
 			"repeat": 3,
 			"//param": "top_limit",
 			"param": [90]
 		},
 		"cpu.temp": {
-			"function": "check_cpu_temp",
+			"function": "cpu.temp",
 			"interval": 10,
 			"//param": "low_limit high_limit",
 			"param": [90, 110]
 		},
 		"board.temp": {
-			"function": "check_board_temp",
+			"function": "board.temp",
 			"interval": 10,
 			"//param": "low_limit high_limit",
 			"param": [0, 90, 110]
 		},
 		"power.check": {
-			"function": "ina2xx_reg_check",
+			"function": "power.check",
 			"interval": 5,
 			"repeat": 3,
 			"//param": "chipid limit",
 			"param": [0, 30000]
 		},
 		"fpga.reg.check1": {
-			"function": "fpga_reg_check",
+			"function": "fpga.reg",
 			"interval": 10,
 			"//param": "reg_addr mask exp_val",
 			"param": [0x85000010, 0xffff, 0x28]
 		},
 		"9544.reg.check1": {
-			"function": "ad9544_reg_check",
+			"function": "9544.reg",
 			"interval": 20,
 			"//param": "addr mask value",
 			"param": [0xc, 0xff, 0x56]
 		},
 		"9544.pll.lock": {
-			"function": "ad9544_pll_check",
+			"function": "9544.pll",
 			"interval": 5,
 			"repeat": 3
 		},
 		"9528.reg.check1": {
-			"function": "ad9528_reg_check",
+			"function": "9528.reg",
 			"interval": 20,
 			"//param": "addr mask value",
 			"param": [0x508, 0xff, 0xEB]
 		},
 		"9528.pll.lock": {
-			"function": "ad9528_pll_check",
+			"function": "9528.pll",
 			"interval": 5,
 			"repeat": 3
 		},
 		"9009.reg.check1": {
-			"function": "adrv9009_reg_check",
+			"function": "9009.reg",
 			"interval": 20,
 			"//param": "chipid addr mask value",
 			"param": [0, 0x200, 0xff, 0x14]
 		},
 		"9009.pll.lock": {
-			"function": "adrv9009_pll_check",
+			"function": "9009.pll",
 			"interval": 5,
 			"repeat": 3,
 			"param": [0]

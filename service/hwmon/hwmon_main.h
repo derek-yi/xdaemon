@@ -56,4 +56,8 @@ int hwmon_send_msg(int node_id, char *node_desc, int fault_state, int fault_src)
 
 int hwmon_enable_task(int enable);
 
+int cpri_link_monitor(void *param);
+
+int get_cpri_link(uint32 port_id, uint32 *link);
+
 #endif

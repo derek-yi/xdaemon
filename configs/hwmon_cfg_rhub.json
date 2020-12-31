@@ -4,7 +4,7 @@
 	},
 	"checklist": {
 		"cpu.occupy": {
-			"function": "check_cpu_occupy",
+			"function": "cpu.occupy",
 			"interval": 10,
 			"repeat": 3,
 			"//param": "top_limit",
@@ -12,51 +12,51 @@
 			"append": "hi,hwmon"
 		},
 		"mem.occupy": {
-			"function": "check_mem_occupy",
+			"function": "mem.occupy",
 			"interval": 10,
 			"repeat": 3,
 			"//param": "top_limit",
 			"param": [80]
 		},
 		"cpu.temp": {
-			"function": "check_cpu_temp",
+			"function": "cpu.temp",
 			"interval": 10,
 			"//param": "low_limit high_limit",
 			"param": [90, 110]
 		},
 		"board.temp": {
-			"function": "check_board_temp",
+			"function": "board.temp",
 			"interval": 10,
 			"//param": "low_limit high_limit",
 			"param": [0, 90, 110]
 		},
 		"power.check0": {
-			"function": "ina2xx_reg_check",
+			"function": "power.check",
 			"interval": 5,
 			"repeat": 3,
 			"//param": "chipid limit",
 			"param": [0, 30000]
 		},
 		"fan.speed0": {
-			"function": "fan_speed_check",
+			"function": "fan.speed",
 			"interval": 10,
 			"repeat": 3,
 			"//param": "fanid limit",
 			"param": [0, 50]
 		},
 		"9544.reg.check1": {
-			"function": "ad9544_reg_check",
+			"function": "9544.reg",
 			"interval": 20,
 			"//param": "addr mask value",
 			"param": [0xc, 0xff, 0x56]
 		},
 		"9544.pll.lock": {
-			"function": "ad9544_pll_check",
+			"function": "9544.pll",
 			"interval": 5,
 			"repeat": 3
 		},
 		"gps.lock": {
-			"function": "ublox_gps_lock_check",
+			"function": "gps.lock",
 			"interval": 5,
 			"repeat": 3,
 			"param": [0]

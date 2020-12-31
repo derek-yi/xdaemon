@@ -4,6 +4,7 @@
 
 #include "drv_main.h"
 #include "drv_cpu.h"
+#include "drv_fpga.h"
 
 #ifdef BOARD_RRU_G3    
 
@@ -83,6 +84,18 @@ int drv_get_cpu_temp(int *temp)
     return VOS_OK;
 }
 
+/*
+0x43c30018
+Bit[0]  decompress_dis
+0 : Send the decompressed data to dfe // 对应4T4R   
+1: Send the uncompressed data to dfe// 对应2T2
+*/
+int drv_get_channel_cnt(void)
+{
+    if ( fpga_read_bits(0x43c30018, 0, 0x1) ) return 2;
+    
+    return 4;
+}
 
 #endif 
 

@@ -40,6 +40,7 @@
 #define SYS_MAX_FRU_ID          2
 #define SYS_MAX_RF_CHIP         2
 #define SYS_MAX_TEMP_ID         4
+#define SYS_MAX_FAN_ID          0
 
 #endif
 
@@ -54,6 +55,7 @@
 #define SYS_MAX_FRU_ID          1
 #define SYS_MAX_RF_CHIP         0
 #define SYS_MAX_TEMP_ID         2
+#define SYS_MAX_FAN_ID          2
 
 #endif
 

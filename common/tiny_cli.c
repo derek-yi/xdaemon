@@ -267,19 +267,25 @@ int cli_cmd_exec(char *buff)
         if(iNode != NULL)
         {
             cli_show_match_cmd(buff, cmd_key_len);
-            return CMD_OK;
-            //return CMD_ERR_AMBIGUOUS;
+            return CMD_ERR_NOT_MATCH;
         }
     }
 #endif    
 
 #ifndef APP_TEST
-    xlog(XLOG_INFO, "CMD: %s", buff);
+    char *log_buf = strdup(buff);
 #endif
 
     // exec
     argc = cli_param_format(buff, argv, 32);
     rc = (pNode->cmd_func)(argc, argv);
+
+#ifndef APP_TEST
+    if (log_buf != NULL) {
+        if (rc == CMD_OK) xlog(XLOG_INFO, "CMD: %s", log_buf);
+        free(log_buf);
+    }
+#endif
     
     return rc;
 }
@@ -343,7 +349,7 @@ int cli_do_param_test(int argc, char **argv)
         vos_print("%d: %s\r\n", i, argv[i]);
     }
     
-    return CMD_OK;
+    return CMD_OK_NO_LOG;
 }
 
 int cli_do_passwd_verify(int argc, char **argv)
@@ -360,7 +366,7 @@ int cli_do_passwd_verify(int argc, char **argv)
 
     pwd_check_ok = TRUE;
     vos_print("password verified OK \r\n");
-    return CMD_OK;
+    return CMD_OK_NO_LOG;
 }
 
 int cli_do_show_version(int argc, char **argv)
@@ -384,7 +390,7 @@ int cli_do_help(int argc, char **argv)
         pNode = pNode->pNext;
     }
 
-    return CMD_OK;
+    return CMD_OK_NO_LOG;
 }
 
 void cli_cmd_init(void)
@@ -467,11 +473,7 @@ void cli_main_task(void)
         ch = getchar();   
         if ( (ch == '\r') || (ch == '\n') ) {
             ret = cli_cmd_exec(cli_cmd_buff);
-            if(ret != CMD_OK){
-                if (ret == CMD_ERR_NOT_MATCH) vos_print("unknown command\r\n");
-                else if (ret == CMD_ERR_EXIT) break;
-                else vos_print("command exec error\r\n");
-            }
+            if (ret == CMD_ERR_EXIT) break;
             
             memset(cli_cmd_buff, 0, CMD_BUFF_MAX);
             cli_cmd_ptr = 0;
@@ -518,11 +520,7 @@ void cli_telnet_task(int fd)
             if ( (ch == '\r') || (ch == '\n') ) {
                 vos_print("\r\n");
                 ret = cli_cmd_exec(cli_cmd_buff);
-                if (ret != CMD_OK) {
-                    if (ret == CMD_ERR_NOT_MATCH) vos_print("unknown command\r\n");
-                    else if (ret == CMD_ERR_EXIT) goto TASK_EXIT;
-                    else vos_print("command exec error\r\n");
-                }
+                if (ret == CMD_ERR_EXIT) goto TASK_EXIT;
                 
                 memset(cli_cmd_buff, 0, CMD_BUFF_MAX);
                 cli_cmd_ptr = 0;

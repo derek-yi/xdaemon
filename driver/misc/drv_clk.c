@@ -109,22 +109,48 @@ int clk_9FGV100X_reg_read(uint32 chip_id, uint32 reg_addr)
     return VOS_OK;
 }
 
-int drv_gnss_is_locked  ()
+/*
+name-9544 = "rhub-opt8-bulitin-gps";
+name-9544 = "rhub-opt8-1588-master";
+name-9544 = "rhub-opt8-1588";
+name-9544 = "rhub-opt8-ext-gps";
+
+name-9544 = "rru-opt8-4t4r-4p9g";
+name-9544 = "rru-opt8-4t4r-3p5g";
+name-9544 = "rru-opt8-2t2r-4p9g";
+name-9544 = "rru-opt8-2t2r-3p5g";
+*/
+int drv_board_clk_case(char *rd_buf, int buf_max)
 {
     int ret;
-    char cmd_buf[128];
 
-    for (int i = 0; i < 100; i++) {
-        ret = sys_node_readstr("/sys/devices/soc0/amba/e0004000.i2c/i2c-0/i2c-8/8-0042/tim_tp_sfn", cmd_buf, sizeof(cmd_buf));
+    ret = sys_node_readstr("/sys/firmware/devicetree/base/amba/spi@e0007000/clksync-ad9544@0/name-9544", rd_buf, buf_max);
+    if ( ret != VOS_OK )  return VOS_ERR;
+
+    return VOS_OK;
+}
+
+int drv_gnss_is_locked  (void)
+{
+    int ret;
+    char rd_buf[128];
+
+    drv_board_clk_case(rd_buf, sizeof(rd_buf));
+    if ( strstr(rd_buf, "bulitin-gps") == NULL ) {
+        return TRUE;
+    }
+
+    for (int i = 0; i < 10; i++) {
+        ret = sys_node_readstr("/sys/devices/soc0/amba/e0004000.i2c/i2c-0/i2c-8/8-0042/tim_tp_sfn", rd_buf, sizeof(rd_buf));
         if ( ret != VOS_OK )  continue;
 
-          if (!memcmp(cmd_buf, "tpsfn", 5)) {
-              return VOS_OK;
+          if (!memcmp(rd_buf, "tpsfn", 5)) {
+              return TRUE;
           }
           vos_msleep(20);
     }
 
-    return VOS_ERR;
+    return FALSE;
 }
 
 

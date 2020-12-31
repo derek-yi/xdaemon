@@ -739,7 +739,7 @@ int ublox_gps_lock_check(void *self, void *cookie)
     CHK_NODE_INFO_S *node = (CHK_NODE_INFO_S *)self;
     int lock_status = drv_gnss_is_locked();
 
-    if (lock_status != VOS_OK) {
+    if (lock_status != TRUE) {
         if (node->fault_cnt++ >= node->base_cfg.repeat_max) {
             if (node->fault_state != CRITICAL) {
                 mlog(XLOG_WARN, "GNSS 1PPS UNLOCK");
@@ -760,7 +760,7 @@ int ublox_gps_lock_check(void *self, void *cookie)
 }
 #endif
 
-#define DECLARE_FUNC_PTR(func)      { if (!strcmp(func_name, #func)) return func; }
+#define DECLARE_FUNC_PTR(name, func)      { if ( !strncasecmp(func_name, name, strlen(name)) ) return func; }
 
 /*************************************************************************
  * 根据 检测函数名 获取 函数指针
@@ -769,37 +769,37 @@ chk_func hwmon_get_fun_ptr(char *func_name)
 {
     if (func_name == NULL) return NULL;
 
-    DECLARE_FUNC_PTR(check_cpu_occupy);
-    DECLARE_FUNC_PTR(check_mem_occupy);
-    DECLARE_FUNC_PTR(check_cpu_temp);
-    DECLARE_FUNC_PTR(check_board_temp);
-    DECLARE_FUNC_PTR(ina2xx_reg_check);
-    DECLARE_FUNC_PTR(fan_speed_check);
-    DECLARE_FUNC_PTR(fpga_reg_check);
-    DECLARE_FUNC_PTR(fpga_reg_dump);
+    DECLARE_FUNC_PTR("cpu.occupy", check_cpu_occupy);
+    DECLARE_FUNC_PTR("mem.occupy", check_mem_occupy);
+    DECLARE_FUNC_PTR("cpu.temp", check_cpu_temp);
+    DECLARE_FUNC_PTR("board.temp", check_board_temp);
+    DECLARE_FUNC_PTR("power.check", ina2xx_reg_check);
+    DECLARE_FUNC_PTR("fan.speed", fan_speed_check);
+    DECLARE_FUNC_PTR("fpga.reg", fpga_reg_check);
+    DECLARE_FUNC_PTR("fpga.dump", fpga_reg_dump);
     
-    DECLARE_FUNC_PTR(clk_9FGV100X_reg_check);
-    DECLARE_FUNC_PTR(clk_9FGV100X_reg_dump);
-    DECLARE_FUNC_PTR(ad9544_reg_check);
-    DECLARE_FUNC_PTR(ad9544_pll_check);
-    DECLARE_FUNC_PTR(ad9544_reg_dump);
+    //DECLARE_FUNC_PTR("9FGV100X.reg", clk_9FGV100X_reg_check);
+    //DECLARE_FUNC_PTR("9FGV100X.dump", clk_9FGV100X_reg_dump);
+    DECLARE_FUNC_PTR("9544.reg", ad9544_reg_check);
+    DECLARE_FUNC_PTR("9544.pll", ad9544_pll_check);
+    DECLARE_FUNC_PTR("9544.dump", ad9544_reg_dump);
 
 #ifdef INCLUDE_AD9528    
-    DECLARE_FUNC_PTR(ad9528_reg_check);
-    DECLARE_FUNC_PTR(ad9528_pll_check);
-    DECLARE_FUNC_PTR(ad9528_reg_dump);
+    DECLARE_FUNC_PTR("9528.reg", ad9528_reg_check);
+    DECLARE_FUNC_PTR("9528.pll", ad9528_pll_check);
+    DECLARE_FUNC_PTR("9528.dump", ad9528_reg_dump);
 #endif    
-    DECLARE_FUNC_PTR(check_cpri_state);
+    DECLARE_FUNC_PTR("cpri.state", check_cpri_state);
     
 #ifdef INCLUDE_ADRV9009
-    DECLARE_FUNC_PTR(adrv9009_reg_check);
-    DECLARE_FUNC_PTR(adrv9009_pll_check);
-    DECLARE_FUNC_PTR(adrv9009_reg_dump);
-    DECLARE_FUNC_PTR(adrv9009_isr_check);
+    DECLARE_FUNC_PTR("9009.reg", adrv9009_reg_check);
+    DECLARE_FUNC_PTR("9009.pll", adrv9009_pll_check);
+    DECLARE_FUNC_PTR("9009.reg", adrv9009_reg_dump);
+    DECLARE_FUNC_PTR("9009.isr", adrv9009_isr_check);
 #endif    
 
 #ifdef INCLUDE_UBLOX_GNSS
-    DECLARE_FUNC_PTR(ublox_gps_lock_check);
+    DECLARE_FUNC_PTR("gps.lock", ublox_gps_lock_check);
 #endif    
     
     return NULL;

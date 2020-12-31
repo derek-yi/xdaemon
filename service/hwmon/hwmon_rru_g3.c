@@ -1,4 +1,3 @@
-
 #include "daemon_pub.h"
 
 #include "hwmon_main.h"
@@ -47,6 +46,32 @@ int DELAY_B = 0;
 int DELAY_D = 363;
 
 uint32 CPRI_LINK_STAT[MAX_CPRI_CNT];
+uint32 CPRI_DELAY_CTRL_VALUE[MAX_CPRI_CNT];
+
+int cli_cpri_link_show(int argc, char **argv)
+{
+    int j;
+    uint32 value;
+    char uuid_str[64];
+
+    memset(uuid_str, 0, sizeof(uuid_str));
+    for (j = 0; j < 36/4; j++) {
+        value = fpga_read(VENDOR_READ_BASE[0] + 12 + j*4);
+        uuid_str[j*4] = (value >> 24) & 0xFF;
+        uuid_str[j*4 + 1] = (value >> 16) & 0xFF;
+        uuid_str[j*4 + 2] = (value >> 8) & 0xFF;
+        uuid_str[j*4 + 3] = (value) & 0xFF;
+    }
+    vos_print("RRU ID     : %d \r\n", fpga_read(VENDOR_READ_BASE[0]));
+    vos_print("CPRI Link  : %s \r\n", CPRI_LINK_STAT[0]?"Up":"Down");
+    vos_print("RHUB UUID  : %s \r\n", uuid_str[0] ? uuid_str : "(null)");
+
+    memset(uuid_str, 0, sizeof(uuid_str));
+    devm_fru_get_uuid(uuid_str, sizeof(uuid_str));
+    vos_print("Local UUID : %s \r\n", uuid_str);
+
+    return CMD_OK_NO_LOG;
+}
 
 //cpri-r21-mul-slave.sh
 int cpri_link_monitor(void *param)
@@ -62,10 +87,10 @@ int cpri_link_monitor(void *param)
         //cpri link check
         value = fpga_read(CPRI_BASE[i]);
         if ( (value & 0xF) == 0xF) {
-            if(dbg_mode) xlog(XLOG_INFO, "CRPI %d LINK IS NOT UP", i);
+            if(dbg_mode) xlog(XLOG_INFO, "CRPI %d LINK UP", i);
             CPRI_LINK_STAT[i] = 1;
         } else {
-            if(dbg_mode) xlog(XLOG_INFO, "CRPI %d LINK IS NOT UP", i);
+            if(dbg_mode) xlog(XLOG_INFO, "CRPI %d LINK DOWN", i);
             CPRI_LINK_STAT[i] = 0;
         }
 
@@ -93,7 +118,7 @@ int cpri_link_monitor(void *param)
             uuid_str[j*4 + 2] = (value >> 8) & 0xFF;
             uuid_str[j*4 + 3] = (value) & 0xFF;
         }
-        if(dbg_mode) xlog(XLOG_INFO, "CPRI id is %d, rhub sn is %s", i, uuid_str);
+        if(dbg_mode) xlog(XLOG_INFO, "CPRI id is %d, rhub uuid is %s", i, uuid_str);
 
         //echo ${CPRI_LINK_STAT[$i]} $(($rru_id + 0)) $_tmp_sn > /tmp/cpri_stat.txt
         sprintf(temp_buf, "echo %d %d %s > /tmp/cpri_stat.txt", CPRI_LINK_STAT[i], rru_id, uuid_str);
@@ -101,6 +126,7 @@ int cpri_link_monitor(void *param)
 
         fpga_write(VENDOR_WRITE_BASE[i], rru_id);//RRU_ID_W $rru_id
         value = (uint32)time_offset;
+        CPRI_DELAY_CTRL_VALUE[i] = value;
         fpga_write(VENDOR_WRITE_BASE[i] + 4, value); //T_OFFSET $time_offest
 
         //CPRI_4T4R_W 
