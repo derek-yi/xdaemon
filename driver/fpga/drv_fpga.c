@@ -59,7 +59,7 @@ int drv_board_type(void)
     return BOARD_TYPE_RRU;
 }
 
-#ifdef BOARD_RHUB_G1
+#if 1 //BOARD_RHUB_G1
 
 #define SMI_REG_MOD(base)   ( (base) + 0x500 )
 #define SMI_REG_CSR(base)   ( (base) + 0x504 )
@@ -82,7 +82,7 @@ uint32 xlnx_smi_r(uint32 mac_base, uint32 phy_addr, uint32 reg_addr)
 	
 	//cmd=$(( ($prt << 24) | ($1 << 16) | (0 << 14) | (1 << 11) ))
 	//#printf "cmd-a is 0x%08x\n" $cmd
-    uint32 cmd = (prt << 24) | (phy_addr < 16) | (0 << 14) | (1 << 11);
+    uint32 cmd = (prt << 24) | (phy_addr << 16) | (0 << 14) | (1 << 11);
     
 	//devmem $SMI_REG_CSR 32 $cmd
 	fpga_write(SMI_REG_CSR(mac_base), cmd);
@@ -135,7 +135,7 @@ int xlnx_smi_w(uint32 mac_base, uint32 phy_addr, uint32 reg_addr, uint32 wr_val)
 	
 	//cmd=$(( ($prt << 24) | ($1 << 16) | (0 << 14) | (1 << 11) ))
 	//#printf "cmd-a is 0x%08x\n" $cmd
-    uint32 cmd = (prt << 24) | (phy_addr < 16) | (0 << 14) | (1 << 11);
+    uint32 cmd = (prt << 24) | (phy_addr << 16) | (0 << 14) | (1 << 11);
 
 	//devmem $SMI_REG_CSR 32 $cmd
     fpga_write(SMI_REG_CSR(mac_base), cmd);

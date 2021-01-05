@@ -173,6 +173,57 @@ EXIT_PROC:
     return VOS_OK;
 }
 
+int daemon_store_script(char *file_name)
+{
+    cJSON* root_tree;
+    cJSON* temp;
+    int ret = VOS_ERR;
+    char * out;
+    DYN_CFG_S *p;
+
+    root_tree = cJSON_CreateObject();
+    if (root_tree == NULL) return VOS_ERR;
+
+    temp = cJSON_AddObjectToObject(root_tree, "fix.config");
+    if (temp == NULL) goto EXIT_PROC;
+
+    cJSON_AddItemToObject(temp, "drv.conf",         cJSON_CreateString(sys_conf.drv_conf));
+    cJSON_AddItemToObject(temp, "hwmon.conf",       cJSON_CreateString(sys_conf.hwmon_conf));
+    cJSON_AddItemToObject(temp, "devm.conf",        cJSON_CreateString(sys_conf.devm_conf));
+    cJSON_AddItemToObject(temp, "upcfg.conf",       cJSON_CreateString(sys_conf.upcfg_conf));
+    cJSON_AddItemToObject(temp, "uds.file",         cJSON_CreateString(sys_conf.uds_file));
+    cJSON_AddItemToObject(temp, "xlog.path",        cJSON_CreateString(sys_conf.xlog_path));
+    cJSON_AddItemToObject(temp, "customer.name",    cJSON_CreateString(sys_conf.customer_name));
+    cJSON_AddItemToObject(temp, "customer.code",    cJSON_CreateNumber(sys_conf.customer_id));
+
+    temp = cJSON_AddObjectToObject(root_tree, "dyn.config");
+    if (temp == NULL) goto EXIT_PROC;
+
+    sem_wait(&sysconf_sem);
+    p = sys_conf.dyn_cfg;
+    while (p != NULL) {
+        cJSON_AddItemToObject(temp, p->cfg_str, cJSON_CreateString(p->cfg_val));
+        p = p->next;
+    }
+    sem_post(&sysconf_sem);
+
+    out = cJSON_Print(root_tree);
+    if (out) {
+        ret = write_file(file_name, out, strlen(out));
+        vos_print("file content: \r\n %s\r\n", out);
+    } 
+
+EXIT_PROC:
+    if (out != NULL) free(out);
+    if (root_tree != NULL) cJSON_Delete(root_tree);
+    
+    return ret;
+}
+
+#endif
+
+#if 1
+
 int daemon_module_init()
 {
     int ret = 0;
@@ -219,9 +270,6 @@ void daemon_module_exit()
     devm_exit();
 }
 
-#endif
-
-#if 1
 
 void handle_signal(int signal)
 {
@@ -258,7 +306,7 @@ int single_instance_check(char *file_path)
 int main(int argc, char **argv)
 {
     struct sigaction sa;
-    char *cfg_file = "configs/daemon_cfg_rru.json";
+    char *cfg_file = DEF_RUNNING_CFG; //as running cfg
 
     if (single_instance_check("./.applock") != VOS_OK) {
         return VOS_ERR;
@@ -266,7 +314,14 @@ int main(int argc, char **argv)
 
     xlog_desc_init();
     xlog(XLOG_INFO, "starting %s ...", argv[0]);
-    if (argc > 1) cfg_file = argv[1];
+    if (access(cfg_file, F_OK) != 0) {
+        if (argc < 2) {
+            xlog(XLOG_ERROR, "no cfg file\r\n");
+            return VOS_ERR;
+        }
+        cfg_file = argv[1];  //as init cfg
+    }
+        
     if (daemon_load_script(cfg_file) != VOS_OK) {
         xlog(XLOG_ERROR, "daemon_load_script failed \r\n");
         return VOS_ERR;

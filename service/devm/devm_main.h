@@ -4,9 +4,7 @@
 
 int devm_import_fru_info(void);
 
-char *sys_conf_get(char *key_str);
-int sys_conf_geti(char *key_str);
-int sys_conf_set(char *key_str, char *key_val);
+int daemon_store_script(char *file_name);
 
 int cli_show_fru_info(int argc, char **argv);
 int cli_fru_set_mac(int argc, char **argv);

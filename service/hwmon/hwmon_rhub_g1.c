@@ -181,6 +181,8 @@ void CPRI_DELAY_CTRL()
 
 int get_cpri_link(uint32 port_id, uint32 *link)
 {
+    uint32 value;
+    
     if ( port_id >= MAX_CPRI_CNT + 2 ) return VOS_ERR;
     if ( link == NULL ) return VOS_ERR;
 
@@ -192,13 +194,16 @@ int get_cpri_link(uint32 port_id, uint32 *link)
     } 
 
     //2:has optical module,no link;3:Rx/Tx active ;4:Rx&Tx idle.
-    if (port_id == 0) { //CAS
+    if (port_id == 1) { //CAS
         if (fpga_read(CAS_STATE_BASE) > 2) *link = TRUE;
         else *link = FALSE;
         return VOS_OK;
     }
 
-    *link = CPRI_LINK_STAT[port_id - 2]; //CPRI0-7
+    value = fpga_read(CPRI_BASE[port_id - 2]);
+    if ( (value & 0xF) == 0xF) *link = TRUE;
+    else *link = FALSE;
+    
     return VOS_OK;
 }
 
@@ -211,6 +216,9 @@ int cpri_link_monitor(void *param)
     float rx_fifo_delay, tx_fifo_delay, _r21, r21;
     char uuid_str[64];
     char temp_buf[128];
+
+    if ( !sys_conf_geti("rm.cpri.sh") ) return VOS_OK; //to be deleted
+    dbg_mode = sys_conf_geti("cpri_dbg_mode");
     
     shell_run_cmd("rm -f /tmp/cpri_stat.tmp");
     for (i = 0; i < MAX_CPRI_CNT; i++) {

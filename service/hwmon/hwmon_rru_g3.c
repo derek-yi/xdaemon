@@ -19,7 +19,7 @@ int hwmon_config_override()
 
     memset(&new_node, 0, sizeof(CHK_NODE_CFG_S));
     new_node.node_desc  = "rf0.isr.chk";
-    new_node.func_name  = "adrv9009_isr_check";
+    new_node.func_name  = "9009.isr";
     new_node.interval   = 10;
     new_node.param[0] = 0;
     hwmon_register(&new_node);
@@ -83,6 +83,9 @@ int cpri_link_monitor(void *param)
     uint32 cpri_r21;
     float rx_fifo_delay, tx_fifo_delay, time_offset;
 
+    if ( !sys_conf_geti("rm.cpri.sh") ) return VOS_OK; //to be deleted
+    dbg_mode = sys_conf_geti("cpri_dbg_mode");
+    
     for (i = 0; i < MAX_CPRI_CNT; i++) {
         //cpri link check
         value = fpga_read(CPRI_BASE[i]);

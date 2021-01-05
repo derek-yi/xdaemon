@@ -9,18 +9,18 @@ int cli_sys_cfg_list(int argc, char **argv)
 {   
     DYN_CFG_S *dyn_cfg;
 
-    vos_print("top_conf         : %s\r\n",      sys_conf.top_conf);
-    vos_print("drv_conf         : %s\r\n",      sys_conf.drv_conf);
-    vos_print("hwmon_conf       : %s\r\n",      sys_conf.hwmon_conf);
-    vos_print("devm_conf        : %s\r\n",      sys_conf.devm_conf);
-    vos_print("upcfg_conf       : %s\r\n",      sys_conf.upcfg_conf);
-    vos_print("customer_name    : %s\r\n",      sys_conf.customer_name);
-    vos_print("customer_id      : %d\r\n",      sys_conf.customer_id);
+    vos_print("top_conf             : %s\r\n",      sys_conf.top_conf);
+    vos_print("drv_conf             : %s\r\n",      sys_conf.drv_conf);
+    vos_print("hwmon_conf           : %s\r\n",      sys_conf.hwmon_conf);
+    vos_print("devm_conf            : %s\r\n",      sys_conf.devm_conf);
+    vos_print("upcfg_conf           : %s\r\n",      sys_conf.upcfg_conf);
+    vos_print("customer_name        : %s\r\n",      sys_conf.customer_name);
+    vos_print("customer_id          : %d\r\n",      sys_conf.customer_id);
     vos_print("\r\n");
     
     dyn_cfg = sys_conf.dyn_cfg;
     while (dyn_cfg) {
-        vos_print("%-16s : %s\r\n", dyn_cfg->cfg_str, dyn_cfg->cfg_val);
+        vos_print("%-20s : %s\r\n", dyn_cfg->cfg_str, dyn_cfg->cfg_val);
         dyn_cfg = dyn_cfg->next;
     }
     
@@ -38,6 +38,20 @@ int cli_sys_cfg_set(int argc, char **argv)
     return VOS_OK;
 }
 
+int cli_sys_cfg_store(int argc, char **argv)
+{
+    if ( daemon_store_script(DEF_RUNNING_CFG) != VOS_OK) {
+        vos_print("Failed to save sys config\r\n");
+    }
+    return VOS_OK;
+}
+
+int cli_sys_cfg_clear(int argc, char **argv)
+{
+    unlink(DEF_RUNNING_CFG);    
+    return VOS_OK;
+}
+
 int devm_cmd_reg()
 {
     cli_cmd_reg("fru_show",         "show fru info",                &cli_show_fru_info);
@@ -50,7 +64,10 @@ int devm_cmd_reg()
     cli_cmd_reg("fru_set_rf_cal",   "set RF calibration param",     &cli_fru_set_rf_calibration);
     cli_cmd_reg("fru_set_sn",       "set board sn",                 &cli_fru_set_sn);
     cli_cmd_reg("fru_load",         "load json fru",                &cli_fru_load_json);
+
     cli_cmd_reg("cfg_set",          "set sys conf",                 &cli_sys_cfg_set);
+    cli_cmd_reg("cfg_save",         "save sys conf",                &cli_sys_cfg_store);
+    cli_cmd_reg("cfg_clear",        "reset to init conf",           &cli_sys_cfg_clear);
 #endif
 
     return VOS_OK;

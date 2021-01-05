@@ -87,6 +87,11 @@ typedef struct _SYS_CONF_PARAM
 
 extern SYS_CONF_PARAM sys_conf;
 
+#define DEF_RUNNING_CFG     "/root/app/oran_daemon/top_cfg.json"
+
+char *sys_conf_get(char *key_str);
+int sys_conf_geti(char *key_str);
+int sys_conf_set(char *key_str, char *key_val);
 
 
 #endif //_DAEMON_PUB_H_

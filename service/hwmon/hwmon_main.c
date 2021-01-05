@@ -484,7 +484,7 @@ int hwmon_list_check(void *param)
 TIMER_INFO_S hwmon_timer_list[] = 
 { 
     {1, 1, 0, hwmon_list_check, NULL}, 
-    {0, 3, 0, cpri_link_monitor, NULL}, //todo
+    {1, 3, 0, cpri_link_monitor, NULL},
     {0, 5, 0, hwmon_policy_update, NULL}, //todo
 };
 

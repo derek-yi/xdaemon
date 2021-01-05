@@ -39,7 +39,7 @@ ifeq ($(DAEMON_RELEASE), 1)
 CFLAGS += -DDAEMON_RELEASE
 endif
 
-LINK_FLAGS += -lrt -lpthread -lzlog
+LINK_FLAGS += -lrt -lpthread -lzlog -lm
 
 ##########################################################
 # kernel driver

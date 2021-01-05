@@ -976,6 +976,72 @@ int cli_mac_config(int argc, char **argv)
     return CMD_OK;
 }
 
+int PC_Numerology = 0;
+int PC_FFTLength = 0;
+int PC_CpLenLong = 0;
+int PC_CpLenShort = 0;
+double PC_SampleRate;
+double PC_FO;
+
+#include <math.h>
+
+//#define PI    3.14159265
+double PI = acos(-1);
+
+int py_phase_compensation(int sym_num, int fft_len, int cp_len_l, int cp_len_s, double sample_rate, double fo)
+{
+    int ret = VOS_ERR;
+    int ii;
+    int NumOfSymbols_1ms;
+    int *CPlist;
+    int *t_start;
+    int *Phaselist_I;
+    int *Phaselist_Q;
+    double self_fo, temp_t_i,temp_t_q;
+    
+    sample_rate = sample_rate*1000000;
+    self_fo = fo*1000000000;
+    NumOfSymbols_1ms = 14*pow(2, sym_num);
+    
+    CPlist = (int *)malloc(NumOfSymbols_1ms * sizeof(int));
+    if (CPlist == NULL) goto FUNC_EXIT;
+    t_start = (int *)malloc(NumOfSymbols_1ms * sizeof(int));
+    if (t_start == NULL) goto FUNC_EXIT;
+    Phaselist_I = (int *)malloc(NumOfSymbols_1ms * sizeof(int));
+    if (Phaselist_I == NULL) goto FUNC_EXIT;
+    Phaselist_Q = (int *)malloc(NumOfSymbols_1ms * sizeof(int));
+    if (Phaselist_Q == NULL) goto FUNC_EXIT;
+
+    for (ii = 0; ii <NumOfSymbols_1ms; ii++) {
+        if ( ii % (int)pow(7*2, sym_num) == 0 ) CPlist[ii] = cp_len_l;
+        else CPlist[ii] = cp_len_s;
+    }
+
+    for (ii = 0; ii <NumOfSymbols_1ms; ii++) {
+        if (ii == 0) t_start[ii] = 0;
+        else t_start[ii] = t_start[ii - 1] + (fft_len + CPlist[ii - 1])/sample_rate;
+
+        temp_t_i = (double)cos(-1 * 2 * PI * self_fo * (t_start[ii] + CPlist[ii] / sample_rate));
+        temp_t_q = (double)sin(-1 * 2 * PI * self_fo * (t_start[ii] + CPlist[ii] / sample_rate));
+        Phaselist_I[ii] = round(temp_t_i*(pow(2,15)-1));
+        Phaselist_Q[ii] = round(temp_t_q*(pow(2,15)-1));
+    }
+
+    for (ii = 0; ii <28; ii++) {
+        uint32 value = ((Phaselist_Q[ii] & 0xFFFF) << 16) | (Phaselist_I[ii] & 0xFFFF); 
+        fpga_write(0x43c30058 + 4*ii, value);        
+    }
+    ret = VOS_OK;
+
+FUNC_EXIT:
+    if (CPlist) free(CPlist);
+    if (t_start) free(t_start);
+    if (Phaselist_I) free(Phaselist_I);
+    if (Phaselist_Q) free(Phaselist_Q);
+    
+    return ret;
+}
+
 int cli_phase_compensation(int argc, char **argv)
 {
     if (argc < 2) {
@@ -984,9 +1050,33 @@ int cli_phase_compensation(int argc, char **argv)
         return CMD_ERR_PARAM;
     }
 
-    if (!strncasecmp(argv[1], "show", 4)) {
-        
+    if ( !strncasecmp(argv[1], "show", strlen(argv[1])) ) {
+        if ( (PC_Numerology == 0) || (PC_FFTLength == 0) ) {
+            vos_print("null cfg to phase compensation\r\n");
+            return CMD_OK_NO_LOG;
+        }
+        vos_print("phase compensation params: \r\n");
+        vos_print("-> Numerology %d, FFTLength %d, CpLenLong %d, CpLenShort %d\r\n", PC_Numerology, PC_FFTLength, PC_CpLenLong, PC_CpLenShort);
+        vos_print("-> SampleRate %f, Frequence %f \r\n", PC_SampleRate, PC_FO);
         return CMD_OK_NO_LOG;
+    } else if (argc < 7) {
+        vos_print("invalid param \r\n");
+        return CMD_ERR_PARAM;
+    }
+
+    PC_Numerology   = (int)strtoul(argv[1], 0, 0);
+    PC_FFTLength    = (int)strtoul(argv[2], 0, 0);
+    PC_CpLenLong    = (int)strtoul(argv[3], 0, 0);
+    PC_CpLenShort   = (int)strtoul(argv[4], 0, 0);
+    PC_SampleRate   = (double)strtod(argv[5], 0);
+    PC_FO           = (double)strtod(argv[6], 0);
+    if (PC_Numerology != 1 ) {
+        vos_print("sym_num must be 1 \r\n");
+        return CMD_ERR_PARAM;
+    }
+
+    if (py_phase_compensation(PC_Numerology, PC_FFTLength, PC_CpLenLong, PC_CpLenShort, PC_SampleRate, PC_FO) != VOS_OK) {
+        vos_print("Failed to config phase compensation\r\n");
     }
 
     return CMD_OK;

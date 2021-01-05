@@ -29,6 +29,7 @@ typedef unsigned int uint32;
 #endif
 
 char* read_file(const char *filename);
+int write_file(const char *filename, char *buff, int buff_size); 
 
 int pipe_read(char *cmd_str, char *buff, int buf_len);
 

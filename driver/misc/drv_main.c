@@ -223,7 +223,7 @@ int cli_fpga_read(int argc, char **argv)
     mask = (1<<n_bits) - 1;
 
     value = fpga_read_bits(reg_addr, start_bit, mask);
-    vos_print("MEM_RD: [0x%08x]<%d:%d> = 0x%x \r\n", reg_addr, start_bit, start_bit + n_bits, value);
+    vos_print("MEM_RD: [0x%08x]<%d:%d> = 0x%x \r\n", reg_addr, start_bit, start_bit + n_bits - 1, value);
     
     return CMD_OK;
 }
@@ -250,7 +250,27 @@ int cli_fpga_write(int argc, char **argv)
 
     fpga_write_bits(reg_addr, start_bit, mask, value);
     value = fpga_read_bits(reg_addr, start_bit, mask);
-    vos_print("MEM_WR: [0x%08x]<%d:%d> = 0x%x \r\n", reg_addr, start_bit, start_bit + n_bits, value);
+    vos_print("MEM_WR: [0x%08x]<%d:%d> = 0x%x \r\n", reg_addr, start_bit, start_bit + n_bits - 1, value);
+    
+    return CMD_OK;
+}
+
+int cli_phy_read(int argc, char **argv)
+{
+    uint32 mac_base, phy_addr, reg_addr;
+    uint32 value;
+
+    if (argc < 4) {
+        vos_print("usage: %s <base> <phy> <reg> \r\n", argv[0]);
+        return CMD_ERR_PARAM;
+    }
+
+    mac_base    = (uint32)strtoul(argv[1], 0, 0);
+    phy_addr    = (uint32)strtoul(argv[2], 0, 0);
+    reg_addr    = (uint32)strtoul(argv[3], 0, 0);
+
+    value = xlnx_smi_r(mac_base, phy_addr, reg_addr);
+    vos_print("PHY_RD: [0x%08x: %d, %d] = 0x%x \r\n", mac_base, phy_addr, reg_addr, value);
     
     return CMD_OK;
 }
@@ -274,7 +294,7 @@ int cli_show_version(int argc, char **argv)
     vos_print("\r\n");
     
     pipe_read("uname -r", buffer, sizeof(buffer));
-    vos_print("Kernel Version: %s", buffer);
+    vos_print("Kernel Version: %s\r", buffer);
 
     if (board_type != BOARD_TYPE_NONE) {
         sys_node_readstr("/sys/firmware/devicetree/base/fhk_version/branch_ver", buffer, sizeof(buffer));
@@ -428,6 +448,7 @@ void drv_cmd_reg()
     cli_cmd_reg("wr_bits",      "write FPGA reg bits",  &cli_fpga_write);
     cli_cmd_reg("rd_reg",       "read FPGA reg",        &cli_devmem_read);
     cli_cmd_reg("wr_reg",       "write FPGA reg",       &cli_devmem_write);
+    cli_cmd_reg("rd_phy",       "read PHY reg",         &cli_phy_read);
     //cli_cmd_reg("rd_ram",       "read FPGA RAM",        &cli_devmem_read); //todo
     //cli_cmd_reg("wr_ram",       "write FPGA RAM",       &cli_devmem_write); //todo
 
@@ -672,6 +693,8 @@ int drv_module_init(char *cfg_file)
     xlog(XLOG_INFO, "drv_module_init: %s", cfg_file);
     drv_load_script(cfg_file);
     drv_cmd_reg();
+    if ( sys_conf_geti("rm.fans.sh") ) //to be deleted
+        drv_fan_init();
 
     ret = pthread_create(&threadid, NULL, drv_main_task, NULL);  
     if (ret != 0)  {  
